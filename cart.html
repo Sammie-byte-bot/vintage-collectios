@@ -1,0 +1,633 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Shopping Cart - Vintage Collections</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link
+      href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,500;9..144,600;9..144,700&family=Work+Sans:wght@400;500;600;700&display=swap"
+      rel="stylesheet"
+    />
+    <style>
+      * {
+        font-family: "Work Sans", sans-serif;
+      }
+
+      h1,
+      h2,
+      h3,
+      .serif-heading {
+        font-family: "Fraunces", serif;
+      }
+
+      :root {
+        --primary: #d5572a;
+        --primary-dark: #b8451f;
+        --accent: #2f6f4f;
+        --gold: #e3a23a;
+        --dark: #2c2624;
+        --light: #fdf8f3;
+        --border: #f0e2d3;
+      }
+
+      body {
+        background-color: var(--light);
+        color: var(--dark);
+      }
+
+      .nav-bar {
+        background: white;
+        border-bottom: 1px solid var(--border);
+        padding: 16px 24px;
+        position: sticky;
+        top: 0;
+        z-index: 100;
+      }
+
+      .nav-content {
+        max-width: 1280px;
+        margin: 0 auto;
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        gap: 24px;
+      }
+
+      .logo {
+        font-family: "Fraunces", serif;
+        font-size: 22px;
+        font-weight: 600;
+        color: var(--dark);
+        display: flex;
+        align-items: center;
+        gap: 8px;
+        text-decoration: none;
+        cursor: pointer;
+      }
+
+      .logo svg {
+        color: var(--primary);
+      }
+
+      .nav-icons {
+        display: flex;
+        gap: 8px;
+        align-items: center;
+      }
+
+      .icon-btn {
+        background: none;
+        border: none;
+        cursor: pointer;
+        color: var(--dark);
+        transition: color 200ms;
+        padding: 8px;
+        position: relative;
+      }
+
+      .icon-btn:hover {
+        color: var(--primary);
+      }
+
+      .cart-badge {
+        position: absolute;
+        top: -4px;
+        right: -4px;
+        background: var(--primary);
+        color: white;
+        border-radius: 50%;
+        width: 18px;
+        height: 18px;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        font-size: 11px;
+        font-weight: 700;
+      }
+
+      .breadcrumb {
+        max-width: 1280px;
+        margin: 0 auto;
+        padding: 16px 24px;
+        font-size: 12px;
+        color: #8a7d74;
+      }
+
+      .breadcrumb a {
+        color: var(--primary);
+        text-decoration: none;
+        cursor: pointer;
+      }
+
+      .breadcrumb a:hover {
+        text-decoration: underline;
+      }
+
+      .cart-container {
+        max-width: 1280px;
+        margin: 0 auto;
+        padding: 24px;
+        display: grid;
+        grid-template-columns: 2fr 1fr;
+        gap: 32px;
+      }
+
+      .cart-items {
+        background: white;
+        border-radius: 16px;
+        border: 1px solid var(--border);
+        padding: 24px;
+      }
+
+      .cart-title {
+        font-family: "Fraunces", serif;
+        font-size: 28px;
+        font-weight: 600;
+        margin-bottom: 24px;
+      }
+
+      .cart-item {
+        display: grid;
+        grid-template-columns: 100px 1fr auto;
+        gap: 16px;
+        padding: 16px;
+        border-bottom: 1px solid var(--border);
+        align-items: center;
+      }
+
+      .cart-item:last-child {
+        border-bottom: none;
+      }
+
+      .item-image {
+        width: 100px;
+        height: 100px;
+        object-fit: cover;
+        border-radius: 8px;
+        background: #f5f5f5;
+      }
+
+      .item-details {
+        display: flex;
+        flex-direction: column;
+        gap: 8px;
+      }
+
+      .item-name {
+        font-weight: 600;
+        font-size: 16px;
+        color: var(--dark);
+      }
+
+      .item-price {
+        color: var(--primary);
+        font-weight: 700;
+        font-size: 16px;
+      }
+
+      .item-quantity {
+        display: flex;
+        align-items: center;
+        gap: 8px;
+        margin-top: 8px;
+      }
+
+      .qty-btn {
+        background: white;
+        border: 1px solid var(--border);
+        width: 28px;
+        height: 28px;
+        border-radius: 4px;
+        cursor: pointer;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        font-weight: 600;
+        transition: all 200ms;
+      }
+
+      .qty-btn:hover {
+        border-color: var(--primary);
+        color: var(--primary);
+      }
+
+      .qty-input {
+        width: 40px;
+        text-align: center;
+        border: 1px solid var(--border);
+        border-radius: 4px;
+        padding: 4px;
+        font-weight: 600;
+      }
+
+      .item-actions {
+        display: flex;
+        flex-direction: column;
+        gap: 8px;
+        align-items: flex-end;
+      }
+
+      .item-total {
+        font-weight: 700;
+        font-size: 16px;
+        color: var(--dark);
+      }
+
+      .remove-btn {
+        background: none;
+        border: none;
+        color: #d32f2f;
+        cursor: pointer;
+        font-size: 14px;
+        font-weight: 600;
+        transition: color 200ms;
+      }
+
+      .remove-btn:hover {
+        color: #b71c1c;
+      }
+
+      .empty-cart {
+        text-align: center;
+        padding: 48px 24px;
+        color: #8a7d74;
+      }
+
+      .empty-cart-icon {
+        font-size: 48px;
+        margin-bottom: 16px;
+      }
+
+      .empty-cart-text {
+        font-size: 18px;
+        margin-bottom: 24px;
+      }
+
+      .continue-shopping-btn {
+        background-color: var(--primary);
+        color: white;
+        padding: 12px 24px;
+        border-radius: 999px;
+        font-weight: 600;
+        border: none;
+        cursor: pointer;
+        text-decoration: none;
+        display: inline-block;
+        transition: all 200ms;
+      }
+
+      .continue-shopping-btn:hover {
+        background-color: var(--primary-dark);
+      }
+
+      .order-summary {
+        background: white;
+        border-radius: 16px;
+        border: 1px solid var(--border);
+        padding: 24px;
+        height: fit-content;
+        position: sticky;
+        top: 80px;
+      }
+
+      .summary-title {
+        font-family: "Fraunces", serif;
+        font-size: 20px;
+        font-weight: 600;
+        margin-bottom: 20px;
+      }
+
+      .summary-row {
+        display: flex;
+        justify-content: space-between;
+        margin-bottom: 12px;
+        font-size: 14px;
+      }
+
+      .summary-row.total {
+        border-top: 2px solid var(--border);
+        padding-top: 12px;
+        font-size: 18px;
+        font-weight: 700;
+        color: var(--dark);
+      }
+
+      .checkout-btn {
+        background-color: var(--primary);
+        color: white;
+        padding: 14px 28px;
+        border-radius: 999px;
+        font-weight: 600;
+        border: none;
+        cursor: pointer;
+        width: 100%;
+        font-size: 16px;
+        margin-top: 20px;
+        transition: all 200ms;
+      }
+
+      .checkout-btn:hover {
+        background-color: var(--primary-dark);
+        transform: translateY(-2px);
+        box-shadow: 0 8px 16px rgba(213, 87, 42, 0.25);
+      }
+
+      .checkout-btn:disabled {
+        background-color: #ccc;
+        cursor: not-allowed;
+        transform: none;
+      }
+
+      .toast {
+        position: fixed;
+        bottom: 24px;
+        right: 24px;
+        background: var(--dark);
+        color: white;
+        padding: 16px 24px;
+        border-radius: 8px;
+        font-size: 14px;
+        font-weight: 600;
+        z-index: 1000;
+        animation: slideIn 300ms cubic-bezier(0.23, 1, 0.32, 1);
+      }
+
+      @keyframes slideIn {
+        from {
+          transform: translateX(400px);
+          opacity: 0;
+        }
+        to {
+          transform: translateX(0);
+          opacity: 1;
+        }
+      }
+
+      @media (max-width: 768px) {
+        .cart-container {
+          grid-template-columns: 1fr;
+          gap: 24px;
+          padding: 16px;
+        }
+
+        .order-summary {
+          position: static;
+          top: auto;
+        }
+
+        .cart-item {
+          grid-template-columns: 80px 1fr;
+          gap: 12px;
+        }
+
+        .item-image {
+          width: 80px;
+          height: 80px;
+        }
+
+        .item-actions {
+          grid-column: 1 / -1;
+          flex-direction: row;
+          justify-content: space-between;
+          align-items: center;
+        }
+      }
+    </style>
+  </head>
+  <body>
+    <!-- Navigation Bar -->
+    <nav class="nav-bar">
+      <div class="nav-content">
+        <a href="shop.html" class="logo">
+          <svg
+            width="24"
+            height="24"
+            viewBox="0 0 24 24"
+            fill="none"
+            stroke="currentColor"
+            stroke-width="2"
+          >
+            <path
+              d="M12 2L2 7v10c0 5.55 3.84 10.74 9 12 5.16-1.26 9-6.45 9-12V7l-10-5z"
+            ></path>
+          </svg>
+          Vintage Collections
+        </a>
+        <div class="nav-icons">
+          <button
+            class="icon-btn"
+            onclick="window.location.href = 'cart.html'"
+            style="position: relative"
+            aria-label="Cart"
+          >
+            <svg
+              width="20"
+              height="20"
+              viewBox="0 0 24 24"
+              fill="none"
+              stroke="currentColor"
+              stroke-width="2"
+            >
+              <circle cx="9" cy="21" r="1"></circle>
+              <circle cx="20" cy="21" r="1"></circle>
+              <path
+                d="M1 1h4l2.68 13.39a2 2 0 0 0 2 1.61h9.72a2 2 0 0 0 2-1.61L23 6H6"
+              ></path>
+            </svg>
+            <div class="cart-badge" id="cart-count">0</div>
+          </button>
+        </div>
+      </div>
+    </nav>
+
+    <!-- Breadcrumb -->
+    <div class="breadcrumb">
+      <a href="shop.html">Shop</a> / <span>Shopping Cart</span>
+    </div>
+
+    <!-- Cart Container -->
+    <div class="cart-container">
+      <!-- Cart Items -->
+      <div class="cart-items">
+        <h1 class="cart-title">Shopping Cart</h1>
+        <div id="cart-items-list">
+          <!-- Cart items will be populated here -->
+        </div>
+      </div>
+
+      <!-- Order Summary -->
+      <div class="order-summary">
+        <div class="summary-title">Order Summary</div>
+        <div class="summary-row">
+          <span>Subtotal:</span>
+          <span id="subtotal">KES 0</span>
+        </div>
+        <div class="summary-row">
+          <span>Delivery Fee:</span>
+          <span id="shipping">KES 0</span>
+        </div>
+        <div class="summary-row total">
+          <span>Total:</span>
+          <span id="total">KES 0</span>
+        </div>
+        <button class="checkout-btn" id="checkout-btn" onclick="goToCheckout()">
+          Proceed to Checkout
+        </button>
+        <button
+          class="checkout-btn"
+          style="
+            background-color: transparent;
+            color: var(--dark);
+            border: 2px solid var(--dark);
+            margin-top: 8px;
+          "
+          onclick="window.location.href = 'shop.html'"
+        >
+          Continue Shopping
+        </button>
+      </div>
+    </div>
+
+    <script>
+      let cart = [];
+
+      // Initialize
+      function init() {
+        loadCart();
+        renderCart();
+        updateCartCount();
+      }
+
+      // Load Cart from localStorage
+      function loadCart() {
+        cart = JSON.parse(localStorage.getItem("cart")) || [];
+      }
+
+      // Render Cart Items
+      function renderCart() {
+        const container = document.getElementById("cart-items-list");
+
+        if (cart.length === 0) {
+          container.innerHTML = `
+            <div class="empty-cart">
+              <div class="empty-cart-icon">🛒</div>
+              <div class="empty-cart-text">Your cart is empty</div>
+              <a href="shop.html" class="continue-shopping-btn">Continue Shopping</a>
+            </div>
+          `;
+          document.getElementById("checkout-btn").disabled = true;
+          updateSummary();
+          return;
+        }
+
+        container.innerHTML = cart
+          .map(
+            (item) => `
+            <div class="cart-item">
+              <img src="${item.image}" alt="${item.name}" class="item-image" onerror="this.src='https://placehold.co/100x100?text=${encodeURIComponent(item.name)}'">
+              <div class="item-details">
+                <div class="item-name">${item.name}</div>
+                <div class="item-price">KES ${item.price.toLocaleString()}</div>
+                <div class="item-quantity">
+                  <button class="qty-btn" onclick="decreaseQuantity(${item.id})">−</button>
+                  <input type="number" class="qty-input" value="${item.quantity}" readonly>
+                  <button class="qty-btn" onclick="increaseQuantity(${item.id})">+</button>
+                </div>
+              </div>
+              <div class="item-actions">
+                <div class="item-total">KES ${(item.price * item.quantity).toLocaleString()}</div>
+                <button class="remove-btn" onclick="removeItem(${item.id})">Remove</button>
+              </div>
+            </div>
+          `,
+          )
+          .join("");
+
+        updateSummary();
+        document.getElementById("checkout-btn").disabled = false;
+      }
+
+      // Increase Quantity
+      function increaseQuantity(productId) {
+        const item = cart.find((p) => p.id === productId);
+        if (item && item.quantity < 10) {
+          item.quantity += 1;
+          saveCart();
+          renderCart();
+        }
+      }
+
+      // Decrease Quantity
+      function decreaseQuantity(productId) {
+        const item = cart.find((p) => p.id === productId);
+        if (item && item.quantity > 1) {
+          item.quantity -= 1;
+          saveCart();
+          renderCart();
+        }
+      }
+
+      // Remove Item
+      function removeItem(productId) {
+        cart = cart.filter((item) => item.id !== productId);
+        saveCart();
+        renderCart();
+        showToast("Item removed from cart");
+      }
+
+      // Save Cart to localStorage
+      function saveCart() {
+        localStorage.setItem("cart", JSON.stringify(cart));
+      }
+
+      // Update Summary
+      function updateSummary() {
+        const subtotal = cart.reduce(
+          (sum, item) => sum + item.price * item.quantity,
+          0,
+        );
+        const shipping = subtotal > 0 ? 100 : 0;
+        const total = subtotal + shipping;
+
+        document.getElementById("subtotal").textContent =
+          `KES ${subtotal.toLocaleString()}`;
+        document.getElementById("shipping").textContent =
+          `KES ${shipping.toLocaleString()}`;
+        document.getElementById("total").textContent =
+          `KES ${total.toLocaleString()}`;
+      }
+
+      // Update Cart Count
+      function updateCartCount() {
+        const count = cart.reduce((sum, item) => sum + item.quantity, 0);
+        document.getElementById("cart-count").textContent = count;
+      }
+
+      // Go to Checkout
+      function goToCheckout() {
+        if (cart.length > 0) {
+          window.location.href = "checkout.html";
+        }
+      }
+
+      // Show Toast
+      function showToast(message) {
+        const toast = document.createElement("div");
+        toast.className = "toast";
+        toast.textContent = message;
+        document.body.appendChild(toast);
+        setTimeout(() => {
+          toast.style.animation =
+            "slideIn 300ms cubic-bezier(0.23, 1, 0.32, 1) reverse";
+          setTimeout(() => toast.remove(), 300);
+        }, 3000);
+      }
+
+      // Initialize on load
+      document.addEventListener("DOMContentLoaded", init);
+    </script>
+  </body>
+</html>
