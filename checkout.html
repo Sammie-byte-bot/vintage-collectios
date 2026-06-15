@@ -513,8 +513,20 @@
             </div>
             <div class="form-group">
               <label>Postal Code *</label>
-              <input type="text" id="postalCode" required />
+              <!-- Postal Code removed as per request -->
             </div>
+          </div>
+          <div class="form-group">
+            <label>Delivery Area *</label>
+            <select id="deliveryArea" required onchange="updateDeliveryFee()">
+              <option value="">Select Delivery Area</option>
+              <option value="Uthiru">Uthiru (KES 50)</option>
+              <option value="Kabete">Kabete (Free)</option>
+              <option value="Mountain View">Mountain View (KES 100)</option>
+              <option value="Kangemi">Kangemi (KES 100)</option>
+              <option value="CBD">CBD (KES 150)</option>
+              <option value="Kinoo">Kinoo (KES 150)</option>
+            </select>
           </div>
           <div class="form-group">
             <label>Country *</label>
@@ -688,6 +700,15 @@
       const db = getFirestore(app);
       const auth = getAuth(app);
 
+      const deliveryAreaFees = {
+        "Uthiru": 50,
+        "Kabete": 0,
+        "Mountain View": 100,
+        "Kangemi": 100,
+        "CBD": 150,
+        "Kinoo": 150,
+      };
+
       let cart = [];
       window.selectedPayment = "card";
 
@@ -734,7 +755,18 @@
           (sum, item) => sum + item.price * item.quantity,
           0,
         );
-        const shipping = subtotal > 0 ? 100 : 0;
+
+        let shipping = 0;
+        const selectedArea = document.getElementById("deliveryArea")?.value;
+        if (selectedArea && deliveryAreaFees.hasOwnProperty(selectedArea)) {
+          shipping = deliveryAreaFees[selectedArea];
+        }
+
+        // If subtotal is 0, shipping should also be 0
+        if (subtotal === 0) {
+          shipping = 0;
+        }
+
         const total = subtotal + shipping;
 
         document.getElementById("review-subtotal").textContent =
@@ -744,6 +776,11 @@
         document.getElementById("review-total").textContent =
           `KES ${total.toLocaleString()}`;
       }
+
+      // Update delivery fee when area changes
+      window.updateDeliveryFee = () => {
+        updateSummary();
+      };
 
       // Select Payment Method
       window.selectPayment = (method, element) => {
@@ -798,8 +835,10 @@
             (sum, item) => sum + item.price * item.quantity,
             0,
           );
-          const shipping = subtotal > 0 ? 100 : 0;
-          const totalAmount = subtotal + shipping;
+          const selectedDeliveryArea = document.getElementById("deliveryArea").value;
+          const actualDeliveryFee = deliveryAreaFees[selectedDeliveryArea] || 0;
+
+          const finalTotalAmount = subtotal + actualDeliveryFee;
 
           // Calculate estimated delivery (3 days from now)
           const deliveryDate = new Date();
@@ -816,12 +855,14 @@
             customerName: `${document.getElementById("firstName").value} ${document.getElementById("lastName").value}`,
             customerEmail: document.getElementById("email").value,
             phone: parseInt(document.getElementById("phone").value) || 0, // stored as int64
-            address: `${document.getElementById("address").value}, ${document.getElementById("city").value}, ${document.getElementById("postalCode").value}, ${document.getElementById("country").value}`,
+            address: `${document.getElementById("address").value}, ${document.getElementById("city").value}, ${document.getElementById("country").value}`,
+            deliveryArea: selectedDeliveryArea,
+            deliveryFee: actualDeliveryFee,
             notes: "", // Empty string as per schema
             status: "pending",
             paymentMethod: selectedPayment,
             estimatedDelivery: estimatedDelivery,
-            total: totalAmount.toString(), // stored as string
+            total: finalTotalAmount.toString(), // stored as string
             items: cart.map((item) => ({
               name: item.name,
               image: item.image, // Include image for dashboard thumbnails

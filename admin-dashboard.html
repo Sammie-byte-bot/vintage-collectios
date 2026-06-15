@@ -481,8 +481,11 @@
         const modal = document.getElementById("product-modal");
         const title = document.getElementById("modal-title");
         const form = document.getElementById("product-form");
+        const btn = document.getElementById("save-product-btn");
         form.reset();
         document.getElementById("image-preview-list").innerHTML = "";
+        btn.classList.remove("loading");
+        btn.disabled = false;
 
         if (id) {
           title.textContent = "Edit Product";
@@ -570,6 +573,7 @@
       };
 
       window.saveProduct = async () => {
+        const btn = document.getElementById("save-product-btn");
         const form = document.getElementById("product-form");
         const data = {
           name: form["prod-name"].value.trim(),
@@ -590,6 +594,10 @@
           showToast("Name and price are required.", "error");
           return;
         }
+
+        btn.classList.add("loading");
+        btn.disabled = true;
+
         try {
           if (editingProductId) {
             await updateDoc(doc(db, "products", editingProductId), data);
@@ -605,6 +613,9 @@
           loadProducts();
         } catch (e) {
           showToast("Error saving product.", "error");
+        } finally {
+          btn.classList.remove("loading");
+          btn.disabled = false;
         }
       };
 
@@ -648,8 +659,11 @@
         uploadedImageURLs = [];
         const modal = document.getElementById("offer-modal");
         const form = document.getElementById("offer-form");
+        const btn = document.getElementById("save-offer-btn");
         form.reset();
         document.getElementById("offer-image-preview-list").innerHTML = "";
+        btn.classList.remove("loading");
+        btn.disabled = false;
 
         if (id) {
           const snap = await getDoc(doc(db, "offers", id));
@@ -703,6 +717,7 @@
       };
 
       window.saveOffer = async () => {
+        const btn = document.getElementById("save-offer-btn");
         const form = document.getElementById("offer-form");
         const data = {
           name: form["offer-name"].value.trim(),
@@ -722,6 +737,9 @@
           return;
         }
 
+        btn.classList.add("loading");
+        btn.disabled = true;
+
         try {
           if (editingOfferId) {
             await updateDoc(doc(db, "offers", editingOfferId), data);
@@ -737,6 +755,9 @@
           loadOffers();
         } catch (e) {
           showToast("Error saving offer.", "error");
+        } finally {
+          btn.classList.remove("loading");
+          btn.disabled = false;
         }
       };
 
@@ -903,6 +924,8 @@
             <div><strong>Customer</strong><br/>${o.customerName || "—"}</div>
             <div><strong>Email</strong><br/>${o.customerEmail || "—"}</div>
             <div><strong>Phone</strong><br/>${o.phone || "—"}</div>
+            <div><strong>Delivery Area</strong><br/>${o.deliveryArea || "—"}</div>
+            <div><strong>Delivery Fee</strong><br/>KES ${parseFloat(o.deliveryFee || 0).toLocaleString()}</div>
             <div><strong>Status</strong><br/><span class="badge badge-${statusColor(o.status)}">${o.status}</span></div>
             <div style="grid-column:1/-1"><strong>Shipping Address</strong><br/>${o.address || "—"}</div>
           </div>
@@ -1790,7 +1813,31 @@
         white-space: nowrap;
         display: inline-flex;
         align-items: center;
+        justify-content: center;
         gap: 8px;
+        position: relative;
+        min-width: 120px;
+      }
+
+      .btn-spinner {
+        width: 18px;
+        height: 18px;
+        border: 2px solid rgba(255, 255, 255, 0.3);
+        border-top-color: white;
+        border-radius: 50%;
+        animation: btn-spin 0.6s linear infinite;
+        display: none;
+      }
+      @keyframes btn-spin {
+        to {
+          transform: rotate(360deg);
+        }
+      }
+      .btn-primary.loading .btn-spinner {
+        display: block;
+      }
+      .btn-primary.loading .btn-text {
+        display: none;
       }
 
       .btn-primary:hover {
@@ -3179,8 +3226,13 @@
           <button class="btn-ghost" onclick="closeProductModal()">
             Cancel
           </button>
-          <button class="btn-primary" onclick="saveProduct()">
-            Save Product
+          <button
+            class="btn-primary"
+            id="save-product-btn"
+            onclick="saveProduct()"
+          >
+            <div class="btn-spinner"></div>
+            <span class="btn-text">Save Product</span>
           </button>
         </div>
       </div>
@@ -3255,7 +3307,10 @@
         </div>
         <div class="modal-footer">
           <button class="btn-ghost" onclick="closeOfferModal()">Cancel</button>
-          <button class="btn-primary" onclick="saveOffer()">Save Offer</button>
+          <button class="btn-primary" id="save-offer-btn" onclick="saveOffer()">
+            <div class="btn-spinner"></div>
+            <span class="btn-text">Save Offer</span>
+          </button>
         </div>
       </div>
     </div>

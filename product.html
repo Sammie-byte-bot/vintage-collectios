@@ -8,7 +8,7 @@
     <link rel="preconnect" href="https://fonts.googleapis.com" />
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
     <link
-      href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,500;9..144,600;9..144,700&family=Work+Sans:wght@400;500;600;700&display=swap"
+      href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,500;9..144,600;9..144,700&family=Special+Elite&family=Work+Sans:wght@400;500;600;700&display=swap"
       rel="stylesheet"
     />
     <style>
@@ -23,16 +23,22 @@
         font-family: "Fraunces", serif;
       }
 
+      .stamp-font {
+        font-family: "Special Elite", monospace;
+      }
+
       :root {
-        --primary: #d5572a;
-        --primary-dark: #b8451f;
-        --accent: #2f6f4f;
-        --gold: #e3a23a;
+        --primary: #e2583e;
+        --primary-dark: #c4452d;
+        --teal: #2c7a83;
+        --teal-light: #e2f1f1;
+        --gold: #eba83b;
+        --plum: #7c4ea3;
+        --plum-light: #f1e8f7;
         --dark: #2c2624;
-        --light: #fdf8f3;
+        --light: #fbf3e7;
         --border: #f0e2d3;
-        --navy: #2c2624;
-        --light-blue: #b8451f;
+        --muted: #9a8c81;
       }
 
       body {
@@ -40,6 +46,7 @@
         color: var(--dark);
       }
 
+      /* ---------- Nav ---------- */
       .nav-bar {
         background: white;
         border-bottom: 1px solid var(--border);
@@ -91,7 +98,7 @@
       }
 
       .nav-link:hover {
-        color: var(--primary);
+        color: var(--teal);
       }
 
       .nav-icons {
@@ -157,24 +164,41 @@
         transform: rotate(-45deg) translate(7px, -7px);
       }
 
+      .nav-links.active {
+        display: flex;
+        position: absolute;
+        top: 60px;
+        left: 0;
+        right: 0;
+        background: white;
+        flex-direction: column;
+        padding: 16px 24px;
+        gap: 12px;
+        border-bottom: 1px solid var(--border);
+        z-index: 99;
+      }
+
+      /* ---------- Breadcrumb ---------- */
       .breadcrumb {
         max-width: 1280px;
         margin: 0 auto;
         padding: 16px 24px;
         font-size: 12px;
-        color: #8a7d74;
+        color: var(--muted);
       }
 
       .breadcrumb a {
-        color: var(--primary);
+        color: var(--teal);
         text-decoration: none;
         cursor: pointer;
+        font-weight: 600;
       }
 
       .breadcrumb a:hover {
         text-decoration: underline;
       }
 
+      /* ---------- Layout ---------- */
       .product-container {
         max-width: 1280px;
         margin: 0 auto;
@@ -184,6 +208,51 @@
         gap: 48px;
       }
 
+      /* ---------- Skeleton shimmer (transform-based, GPU friendly) ---------- */
+      .loading-skeleton {
+        position: relative;
+        overflow: hidden;
+        background: #ece0d2;
+      }
+
+      .loading-skeleton::after {
+        content: "";
+        position: absolute;
+        top: 0;
+        left: 0;
+        right: 0;
+        bottom: 0;
+        background: linear-gradient(
+          90deg,
+          transparent,
+          rgba(255, 255, 255, 0.55),
+          transparent
+        );
+        transform: translateX(-100%);
+        animation: shimmer 1.6s ease-in-out infinite;
+      }
+
+      @keyframes shimmer {
+        100% {
+          transform: translateX(100%);
+        }
+      }
+
+      @media (prefers-reduced-motion: reduce) {
+        .loading-skeleton::after {
+          animation: none;
+        }
+      }
+
+      .hidden {
+        display: none !important;
+      }
+
+      .skel-line {
+        border-radius: 6px;
+      }
+
+      /* ---------- Gallery ---------- */
       .product-gallery {
         display: flex;
         flex-direction: column;
@@ -201,17 +270,29 @@
         background: white;
       }
 
+      .main-image-wrapper .loading-skeleton {
+        position: absolute;
+        inset: 0;
+        border-radius: 16px;
+      }
+
       .main-image {
         width: 100%;
         height: 100%;
         object-fit: cover;
+        opacity: 0;
+        transition: opacity 300ms ease;
+      }
+
+      .main-image.loaded {
+        opacity: 1;
       }
 
       .wishlist-badge-image {
         position: absolute;
         top: 12px;
         right: 12px;
-        background: rgba(255, 255, 255, 0.9);
+        background: rgba(255, 255, 255, 0.92);
         border-radius: 50%;
         width: 40px;
         height: 40px;
@@ -228,13 +309,13 @@
       }
 
       .wishlist-badge-image:hover {
-        background: var(--gold);
+        background: var(--plum);
         color: white;
         transform: scale(1.1);
       }
 
       .wishlist-badge-image.active {
-        background: var(--primary);
+        background: var(--plum);
         color: white;
       }
 
@@ -258,13 +339,21 @@
       }
 
       .thumbnail:hover {
-        border-color: var(--primary);
+        border-color: var(--teal);
       }
 
       .thumbnail.active {
         border-color: var(--primary);
       }
 
+      .thumb-skel {
+        width: 80px;
+        height: 80px;
+        border-radius: 8px;
+        flex-shrink: 0;
+      }
+
+      /* ---------- Details ---------- */
       .product-details {
         display: flex;
         flex-direction: column;
@@ -276,25 +365,54 @@
         padding-bottom: 24px;
       }
 
+      .product-eyebrow {
+        font-family: "Special Elite", monospace;
+        font-size: 12px;
+        letter-spacing: 0.12em;
+        text-transform: uppercase;
+        color: var(--teal);
+        margin-bottom: 10px;
+      }
+
       .product-title {
         font-family: "Fraunces", serif;
         font-size: 36px;
         font-weight: 600;
         margin-bottom: 8px;
         color: var(--dark);
+        line-height: 1.15;
+      }
+
+      .product-meta {
+        display: flex;
+        align-items: center;
+        gap: 10px;
+        margin-bottom: 12px;
+        flex-wrap: wrap;
       }
 
       .product-seller {
-        color: #8a7d74;
+        color: var(--muted);
         font-size: 14px;
-        margin-bottom: 12px;
+      }
+
+      .condition-badge {
+        font-family: "Special Elite", monospace;
+        font-size: 11px;
+        letter-spacing: 0.06em;
+        text-transform: uppercase;
+        background: var(--teal-light);
+        color: var(--teal);
+        padding: 4px 10px;
+        border-radius: 999px;
+        border: 1px solid var(--teal);
       }
 
       .product-rating {
         display: flex;
         align-items: center;
         gap: 8px;
-        margin-bottom: 12px;
+        margin-bottom: 16px;
       }
 
       .star {
@@ -303,20 +421,52 @@
         height: 16px;
       }
 
+      .star.empty {
+        color: #e6dccd;
+      }
+
       .rating-text {
-        color: #b8a99c;
+        color: var(--plum);
         font-size: 13px;
+        font-weight: 600;
+      }
+
+      /* Signature element: vintage price tag */
+      .product-price-wrap {
+        margin-bottom: 16px;
       }
 
       .product-price {
-        font-size: 32px;
-        font-weight: 700;
+        display: inline-flex;
+        align-items: center;
+        gap: 10px;
+        font-family: "Special Elite", monospace;
+        font-size: 26px;
+        font-weight: 400;
         color: var(--dark);
-        margin-bottom: 12px;
+        background: var(--gold);
+        padding: 10px 22px 10px 34px;
+        border-radius: 4px;
+        position: relative;
+        transform: rotate(-2deg);
+        box-shadow: 4px 4px 0 rgba(44, 38, 36, 0.12);
+      }
+
+      .product-price::before {
+        content: "";
+        position: absolute;
+        left: 12px;
+        top: 50%;
+        width: 9px;
+        height: 9px;
+        border-radius: 50%;
+        background: var(--light);
+        border: 2px solid var(--dark);
+        transform: translateY(-50%);
       }
 
       .product-description {
-        color: #8a7d74;
+        color: var(--muted);
         line-height: 1.6;
         font-size: 15px;
       }
@@ -357,8 +507,8 @@
       }
 
       .quantity-btn:hover {
-        border-color: var(--primary);
-        color: var(--primary);
+        border-color: var(--teal);
+        color: var(--teal);
       }
 
       .quantity-input {
@@ -371,6 +521,7 @@
         outline: none;
       }
 
+      /* ---------- Buttons ---------- */
       .btn-primary {
         background-color: var(--primary);
         color: white;
@@ -391,16 +542,22 @@
       .btn-primary:hover {
         background-color: var(--primary-dark);
         transform: translateY(-2px);
-        box-shadow: 0 8px 16px rgba(213, 87, 42, 0.25);
+        box-shadow: 0 8px 16px rgba(226, 88, 62, 0.25);
+      }
+
+      .btn-primary:disabled {
+        opacity: 0.65;
+        cursor: not-allowed;
+        transform: none;
       }
 
       .btn-secondary {
         background-color: transparent;
-        color: var(--dark);
+        color: var(--teal);
         padding: 14px 28px;
         border-radius: 999px;
         font-weight: 600;
-        border: 2px solid var(--dark);
+        border: 2px solid var(--teal);
         cursor: pointer;
         display: flex;
         align-items: center;
@@ -412,7 +569,7 @@
       }
 
       .btn-secondary:hover {
-        background-color: var(--dark);
+        background-color: var(--teal);
         color: white;
       }
 
@@ -422,11 +579,12 @@
         gap: 12px;
       }
 
+      /* ---------- Seller card ---------- */
       .seller-info {
         background: white;
         padding: 24px;
         border-radius: 16px;
-        border: 1px solid var(--border);
+        border: 1px dashed var(--border);
       }
 
       .seller-name {
@@ -438,13 +596,17 @@
 
       .seller-badge {
         display: inline-block;
-        background: #e8f5e9;
-        color: #2e7d32;
+        font-family: "Special Elite", monospace;
+        text-transform: uppercase;
+        letter-spacing: 0.08em;
+        background: var(--plum-light);
+        color: var(--plum);
         padding: 4px 12px;
         border-radius: 999px;
-        font-size: 12px;
+        font-size: 11px;
         font-weight: 600;
         margin-bottom: 16px;
+        transform: rotate(-2deg);
       }
 
       .seller-stats {
@@ -467,9 +629,10 @@
       }
 
       .stat-label {
-        color: #b8a99c;
+        color: var(--muted);
       }
 
+      /* ---------- Reviews ---------- */
       .reviews-section {
         margin-top: 64px;
         padding-top: 48px;
@@ -504,7 +667,7 @@
       }
 
       .review-date {
-        color: #b8a99c;
+        color: var(--muted);
         font-size: 12px;
       }
 
@@ -515,11 +678,21 @@
       }
 
       .review-text {
-        color: #8a7d74;
+        color: var(--muted);
         font-size: 14px;
         line-height: 1.6;
       }
 
+      .empty-state {
+        text-align: center;
+        padding: 32px;
+        color: var(--muted);
+        background: white;
+        border: 1px dashed var(--border);
+        border-radius: 16px;
+      }
+
+      /* ---------- Related products ---------- */
       .related-products {
         margin-top: 64px;
         padding-top: 48px;
@@ -544,9 +717,12 @@
         border-radius: 16px;
         overflow: hidden;
         box-shadow: 0 1px 3px rgba(44, 38, 36, 0.08);
-        transition: all 250ms cubic-bezier(0.23, 1, 0.32, 1);
+        transition:
+          transform 250ms cubic-bezier(0.23, 1, 0.32, 1),
+          box-shadow 250ms cubic-bezier(0.23, 1, 0.32, 1);
         cursor: pointer;
         border: 1px solid var(--border);
+        contain: content;
       }
 
       .product-card:hover {
@@ -558,6 +734,13 @@
         width: 100%;
         height: 220px;
         object-fit: cover;
+        display: block;
+        background: #f5ece0;
+      }
+
+      .product-image-related-skel {
+        width: 100%;
+        height: 220px;
       }
 
       .product-info-related {
@@ -576,6 +759,7 @@
         font-size: 16px;
       }
 
+      /* ---------- Toast ---------- */
       .toast {
         position: fixed;
         bottom: 24px;
@@ -588,31 +772,12 @@
         font-weight: 600;
         z-index: 1000;
         animation: slideIn 300ms cubic-bezier(0.23, 1, 0.32, 1);
-      }
-
-      .loading-skeleton {
-        background: linear-gradient(
-          90deg,
-          #f0f0f0 25%,
-          #e0e0e0 50%,
-          #f0f0f0 75%
-        );
-        background-size: 200% 100%;
-        animation: loading 1.5s infinite;
-      }
-
-      @keyframes loading {
-        0% {
-          background-position: 200% 0;
-        }
-        100% {
-          background-position: -200% 0;
-        }
+        max-width: calc(100vw - 48px);
       }
 
       @keyframes slideIn {
         from {
-          transform: translateX(400px);
+          transform: translateX(120%);
           opacity: 0;
         }
         to {
@@ -621,6 +786,118 @@
         }
       }
 
+      /* ---------- Contact seller modal ---------- */
+      .modal-overlay {
+        position: fixed;
+        inset: 0;
+        background: rgba(44, 38, 36, 0.45);
+        display: none;
+        align-items: center;
+        justify-content: center;
+        z-index: 1100;
+        padding: 16px;
+      }
+
+      .modal-overlay.active {
+        display: flex;
+      }
+
+      .modal-content {
+        background: white;
+        border-radius: 16px;
+        padding: 28px;
+        width: 100%;
+        max-width: 460px;
+        max-height: 90vh;
+        overflow-y: auto;
+        position: relative;
+        animation: modalIn 200ms ease;
+      }
+
+      @keyframes modalIn {
+        from {
+          opacity: 0;
+          transform: translateY(12px) scale(0.98);
+        }
+        to {
+          opacity: 1;
+          transform: translateY(0) scale(1);
+        }
+      }
+
+      .modal-close {
+        position: absolute;
+        top: 16px;
+        right: 16px;
+        background: var(--light);
+        border: none;
+        width: 32px;
+        height: 32px;
+        border-radius: 50%;
+        cursor: pointer;
+        font-size: 18px;
+        line-height: 1;
+        color: var(--dark);
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        transition: background 150ms;
+      }
+
+      .modal-close:hover {
+        background: var(--teal-light);
+        color: var(--teal);
+      }
+
+      .modal-title {
+        font-family: "Fraunces", serif;
+        font-size: 22px;
+        font-weight: 600;
+        margin-bottom: 6px;
+        padding-right: 32px;
+      }
+
+      .modal-subtitle {
+        color: var(--muted);
+        font-size: 13px;
+        margin-bottom: 20px;
+      }
+
+      .form-group {
+        margin-bottom: 14px;
+      }
+
+      .form-group label {
+        display: block;
+        font-size: 12px;
+        font-weight: 600;
+        text-transform: uppercase;
+        letter-spacing: 0.04em;
+        color: var(--muted);
+        margin-bottom: 6px;
+      }
+
+      .form-group input,
+      .form-group textarea {
+        width: 100%;
+        border: 1px solid var(--border);
+        border-radius: 8px;
+        padding: 10px 12px;
+        font-size: 14px;
+        font-family: "Work Sans", sans-serif;
+        color: var(--dark);
+        background: var(--light);
+        outline: none;
+        transition: border-color 150ms;
+        resize: vertical;
+      }
+
+      .form-group input:focus,
+      .form-group textarea:focus {
+        border-color: var(--teal);
+      }
+
+      /* ---------- Responsive ---------- */
       @media (max-width: 768px) {
         .nav-links {
           display: none;
@@ -628,20 +905,6 @@
 
         .hamburger {
           display: flex;
-        }
-
-        .nav-links.active {
-          display: flex;
-          position: absolute;
-          top: 60px;
-          left: 0;
-          right: 0;
-          background: white;
-          flex-direction: column;
-          padding: 16px 24px;
-          gap: 12px;
-          border-bottom: 1px solid var(--border);
-          z-index: 99;
         }
 
         .product-container {
@@ -659,7 +922,7 @@
         }
 
         .product-price {
-          font-size: 24px;
+          font-size: 20px;
         }
 
         .action-buttons {
@@ -689,7 +952,8 @@
           max-width: 100%;
         }
 
-        .thumbnail {
+        .thumbnail,
+        .thumb-skel {
           width: 60px;
           height: 60px;
         }
@@ -705,10 +969,6 @@
         }
 
         .product-title {
-          font-size: 20px;
-        }
-
-        .product-price {
           font-size: 20px;
         }
 
@@ -819,7 +1079,13 @@
       <!-- Product Gallery -->
       <div class="product-gallery">
         <div class="main-image-wrapper">
-          <img id="main-image" class="main-image" src="" alt="Product" />
+          <div class="loading-skeleton" id="main-image-skeleton"></div>
+          <img
+            id="main-image"
+            class="main-image"
+            alt="Product"
+            decoding="async"
+          />
           <button
             id="wishlist-btn"
             class="wishlist-badge-image"
@@ -847,22 +1113,64 @@
       <div class="product-details">
         <!-- Header -->
         <div class="product-header">
-          <h1 class="product-title" id="product-name">Loading...</h1>
-          <p class="product-seller" id="product-seller">Vintage Collections</p>
-          <div class="product-rating" id="product-rating">
-            <div style="display: flex; gap: 4px">
-              <svg class="star" viewBox="0 0 24 24" fill="currentColor">
-                <polygon
-                  points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"
-                />
-              </svg>
-            </div>
-            <span class="rating-text">0 (0 reviews)</span>
+          <!-- Skeleton -->
+          <div id="header-skeleton">
+            <div
+              class="skel-line loading-skeleton"
+              style="width: 35%; height: 12px; margin-bottom: 14px"
+            ></div>
+            <div
+              class="skel-line loading-skeleton"
+              style="width: 85%; height: 34px; margin-bottom: 8px"
+            ></div>
+            <div
+              class="skel-line loading-skeleton"
+              style="width: 55%; height: 34px; margin-bottom: 14px"
+            ></div>
+            <div
+              class="skel-line loading-skeleton"
+              style="width: 45%; height: 18px; margin-bottom: 14px"
+            ></div>
+            <div
+              class="skel-line loading-skeleton"
+              style="width: 40%; height: 18px; margin-bottom: 14px"
+            ></div>
+            <div
+              class="skel-line loading-skeleton"
+              style="
+                width: 140px;
+                height: 46px;
+                margin-bottom: 16px;
+                border-radius: 4px;
+              "
+            ></div>
+            <div
+              class="skel-line loading-skeleton"
+              style="width: 100%; height: 13px; margin-bottom: 6px"
+            ></div>
+            <div
+              class="skel-line loading-skeleton"
+              style="width: 95%; height: 13px; margin-bottom: 6px"
+            ></div>
+            <div
+              class="skel-line loading-skeleton"
+              style="width: 70%; height: 13px"
+            ></div>
           </div>
-          <div class="product-price" id="product-price">KES 0</div>
-          <p class="product-description" id="product-description">
-            Loading product details...
-          </p>
+          <!-- Real content -->
+          <div id="header-content" class="hidden">
+            <div class="product-eyebrow" id="product-category"></div>
+            <h1 class="product-title" id="product-name"></h1>
+            <div class="product-meta">
+              <p class="product-seller" id="product-seller"></p>
+              <span class="condition-badge" id="product-condition"></span>
+            </div>
+            <div class="product-rating" id="product-rating"></div>
+            <div class="product-price-wrap">
+              <div class="product-price" id="product-price"></div>
+            </div>
+            <p class="product-description" id="product-description"></p>
+          </div>
         </div>
 
         <!-- Quantity Section -->
@@ -902,7 +1210,11 @@
               <div class="stat-label">Products</div>
             </div>
           </div>
-          <button class="btn-secondary" style="margin-top: 12px">
+          <button
+            class="btn-secondary"
+            style="margin-top: 12px"
+            onclick="openContactModal()"
+          >
             Contact Seller
           </button>
         </div>
@@ -914,9 +1226,9 @@
       <div class="reviews-section">
         <h2 class="reviews-title">Customer Reviews</h2>
         <div id="reviews-container">
-          <p style="color: #b8a99c; text-align: center; padding: 32px">
-            No reviews yet
-          </p>
+          <div class="empty-state">
+            No reviews yet — be the first to share your thoughts.
+          </div>
         </div>
       </div>
 
@@ -924,6 +1236,48 @@
       <div class="related-products">
         <h2 class="related-title">Related Products</h2>
         <div class="related-grid" id="related-products"></div>
+      </div>
+    </div>
+
+    <!-- Contact Seller Modal -->
+    <div
+      class="modal-overlay"
+      id="contact-modal-overlay"
+      onclick="closeContactModal(event)"
+    >
+      <div class="modal-content">
+        <button
+          class="modal-close"
+          onclick="closeContactModal()"
+          aria-label="Close"
+        >
+          ×
+        </button>
+        <h3 class="modal-title">Message the seller</h3>
+        <p class="modal-subtitle" id="modal-subtitle">
+          Ask about sizing, condition, shipping, or anything else.
+        </p>
+        <form id="contact-form" onsubmit="submitContactForm(event)">
+          <div class="form-group">
+            <label for="contact-name">Your name</label>
+            <input type="text" id="contact-name" required />
+          </div>
+          <div class="form-group">
+            <label for="contact-email">Email</label>
+            <input type="email" id="contact-email" required />
+          </div>
+          <div class="form-group">
+            <label for="contact-subject">Subject</label>
+            <input type="text" id="contact-subject" required />
+          </div>
+          <div class="form-group">
+            <label for="contact-message">Message</label>
+            <textarea id="contact-message" rows="4" required></textarea>
+          </div>
+          <button type="submit" class="btn-primary" id="contact-submit-btn">
+            Send message
+          </button>
+        </form>
       </div>
     </div>
 
@@ -938,6 +1292,9 @@
         getDoc,
         query,
         where,
+        limit,
+        addDoc,
+        serverTimestamp,
       } from "https://www.gstatic.com/firebasejs/10.7.0/firebase-firestore.js";
       import { firebaseConfig } from "./firebase-config.js";
 
@@ -947,7 +1304,6 @@
 
       // State
       let currentProduct = null;
-      let allProducts = [];
       let wishlist = JSON.parse(localStorage.getItem("wishlist")) || [];
       let cart = JSON.parse(localStorage.getItem("cart")) || [];
 
@@ -957,8 +1313,39 @@
         return params.get("id");
       }
 
+      // Render placeholder thumbnail skeletons while the real image list loads
+      function renderThumbnailSkeletons(count = 4) {
+        const container = document.getElementById("thumbnails");
+        container.innerHTML = Array(count)
+          .fill(0)
+          .map(() => '<div class="thumb-skel loading-skeleton"></div>')
+          .join("");
+      }
+
+      // Render placeholder related-product skeleton cards
+      function renderRelatedSkeletons(count = 4) {
+        const container = document.getElementById("related-products");
+        container.innerHTML = Array(count)
+          .fill(0)
+          .map(
+            () => `
+              <div class="product-card">
+                <div class="product-image-related-skel loading-skeleton"></div>
+                <div class="product-info-related">
+                  <div class="skel-line loading-skeleton" style="width: 80%; height: 14px; margin-bottom: 8px;"></div>
+                  <div class="skel-line loading-skeleton" style="width: 40%; height: 16px;"></div>
+                </div>
+              </div>
+            `,
+          )
+          .join("");
+      }
+
       // Initialize
       async function init() {
+        renderThumbnailSkeletons();
+        renderRelatedSkeletons();
+
         const productId = getProductIdFromURL();
         if (!productId) {
           showError("Product not found");
@@ -1019,11 +1406,15 @@
         document.getElementById("breadcrumb-product").textContent =
           currentProduct.name;
 
-        // Update title and basic info
+        // Fill text content
+        document.getElementById("product-category").textContent =
+          `${currentProduct.category} · ${currentProduct.condition} condition`;
         document.getElementById("product-name").textContent =
           currentProduct.name;
         document.getElementById("product-seller").textContent =
-          currentProduct.seller;
+          `Sold by ${currentProduct.seller}`;
+        document.getElementById("product-condition").textContent =
+          currentProduct.condition;
         document.getElementById("product-price").textContent =
           `KES ${currentProduct.price.toLocaleString()}`;
         document.getElementById("product-description").textContent =
@@ -1031,8 +1422,22 @@
         document.getElementById("seller-name").textContent =
           currentProduct.seller;
 
-        // Load images
+        // Swap skeleton for real header content
+        document.getElementById("header-skeleton").classList.add("hidden");
+        document.getElementById("header-content").classList.remove("hidden");
+
+        // Load main image (skeleton stays visible behind it until it loads)
         const mainImage = document.getElementById("main-image");
+        const mainImageSkeleton = document.getElementById(
+          "main-image-skeleton",
+        );
+        mainImage.onload = () => {
+          mainImage.classList.add("loaded");
+          mainImageSkeleton.classList.add("hidden");
+        };
+        mainImage.onerror = () => {
+          mainImage.src = "https://placehold.co/500x500?text=No+Image";
+        };
         mainImage.src = currentProduct.images[0];
 
         // Load thumbnails
@@ -1040,20 +1445,21 @@
         thumbnailsContainer.innerHTML = currentProduct.images
           .map(
             (img, idx) => `
-                <img src="${img}" alt="Thumbnail ${idx + 1}" class="thumbnail ${idx === 0 ? "active" : ""}" onclick="changeImage('${img}', this)">
+                <img src="${img}" alt="Thumbnail ${idx + 1}" class="thumbnail ${idx === 0 ? "active" : ""}" loading="${idx === 0 ? "eager" : "lazy"}" decoding="async" onclick="changeImage('${img}', this)" onerror="this.src='https://placehold.co/200x200?text=No+Image'">
             `,
           )
           .join("");
 
         // Load rating
         const ratingContainer = document.getElementById("product-rating");
+        const fullStars = Math.round(currentProduct.rating);
         ratingContainer.innerHTML = `
                 <div style="display: flex; gap: 4px;">
-                    ${Array(Math.floor(currentProduct.rating))
+                    ${Array(5)
                       .fill(0)
                       .map(
-                        () =>
-                          '<svg class="star" viewBox="0 0 24 24" fill="currentColor" stroke="currentColor" stroke-width="2"><polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"></polygon></svg>',
+                        (_, i) =>
+                          `<svg class="star ${i < fullStars ? "" : "empty"}" viewBox="0 0 24 24" fill="currentColor" stroke="currentColor" stroke-width="2"><polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"></polygon></svg>`,
                       )
                       .join("")}
                 </div>
@@ -1071,6 +1477,7 @@
           const q = query(
             collection(db, "products"),
             where("category", "==", currentProduct.category),
+            limit(8),
           );
           const snapshot = await getDocs(q);
 
@@ -1093,7 +1500,7 @@
           const container = document.getElementById("related-products");
           if (related.length === 0) {
             container.innerHTML =
-              '<p style="grid-column: 1/-1; text-align: center; color: #b8a99c; padding: 32px">No related products found</p>';
+              '<div class="empty-state" style="grid-column: 1/-1;">No related products found</div>';
             return;
           }
 
@@ -1101,7 +1508,7 @@
             .map(
               (product) => `
                 <div class="product-card" onclick="window.location.href='product.html?id=${product.id}'">
-                    <img src="${product.image}" alt="${product.name}" class="product-image-related" onerror="this.src='https://placehold.co/400x400?text=No+Image'">
+                    <img src="${product.image}" alt="${product.name}" class="product-image-related" loading="lazy" decoding="async" onerror="this.src='https://placehold.co/400x400?text=No+Image'">
                     <div class="product-info-related">
                         <div class="product-name-related">${product.name}</div>
                         <div class="product-price-related">KES ${product.price.toLocaleString()}</div>
@@ -1112,12 +1519,15 @@
             .join("");
         } catch (error) {
           console.error("Error loading related products:", error);
+          document.getElementById("related-products").innerHTML =
+            '<div class="empty-state" style="grid-column: 1/-1;">Couldn\'t load related products</div>';
         }
       }
 
       // Change Image
       window.changeImage = (src, element) => {
-        document.getElementById("main-image").src = src;
+        const mainImage = document.getElementById("main-image");
+        mainImage.src = src;
         document
           .querySelectorAll(".thumbnail")
           .forEach((t) => t.classList.remove("active"));
@@ -1224,6 +1634,70 @@
         navLinks.classList.toggle("active");
         hamburger.classList.toggle("active");
       };
+
+      // ---------- Contact Seller modal ----------
+      window.openContactModal = () => {
+        if (currentProduct) {
+          document.getElementById("modal-subtitle").textContent =
+            `Ask the seller about "${currentProduct.name}" — sizing, condition, shipping, or anything else.`;
+          const subjectField = document.getElementById("contact-subject");
+          const messageField = document.getElementById("contact-message");
+          if (!subjectField.value) {
+            subjectField.value = `Inquiry about ${currentProduct.name}`;
+          }
+          if (!messageField.value) {
+            messageField.value = `Hi, I'm interested in "${currentProduct.name}" (KES ${currentProduct.price.toLocaleString()}). `;
+          }
+        }
+        document
+          .getElementById("contact-modal-overlay")
+          .classList.add("active");
+        document.body.style.overflow = "hidden";
+      };
+
+      window.closeContactModal = (event) => {
+        if (event && event.target !== event.currentTarget) return;
+        document
+          .getElementById("contact-modal-overlay")
+          .classList.remove("active");
+        document.body.style.overflow = "";
+      };
+
+      window.submitContactForm = async (event) => {
+        event.preventDefault();
+        const btn = document.getElementById("contact-submit-btn");
+        const originalLabel = btn.textContent;
+        btn.disabled = true;
+        btn.textContent = "Sending...";
+
+        try {
+          await addDoc(collection(db, "messages"), {
+            name: document.getElementById("contact-name").value.trim(),
+            email: document.getElementById("contact-email").value.trim(),
+            subject: document.getElementById("contact-subject").value.trim(),
+            message: document.getElementById("contact-message").value.trim(),
+            read: false,
+            createdAt: serverTimestamp(),
+          });
+
+          showToast("✓ Message sent to the seller!");
+          document.getElementById("contact-form").reset();
+          window.closeContactModal();
+        } catch (error) {
+          console.error("Error sending message:", error);
+          showToast("Couldn't send message. Please try again.");
+        } finally {
+          btn.disabled = false;
+          btn.textContent = originalLabel;
+        }
+      };
+
+      // Close modal on Escape
+      document.addEventListener("keydown", (e) => {
+        if (e.key === "Escape") {
+          window.closeContactModal();
+        }
+      });
 
       // Show Toast
       function showToast(message) {
