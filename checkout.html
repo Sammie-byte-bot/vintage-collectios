@@ -701,12 +701,12 @@
       const auth = getAuth(app);
 
       const deliveryAreaFees = {
-        "Uthiru": 50,
-        "Kabete": 0,
+        Uthiru: 50,
+        Kabete: 0,
         "Mountain View": 100,
-        "Kangemi": 100,
-        "CBD": 150,
-        "Kinoo": 150,
+        Kangemi: 100,
+        CBD: 150,
+        Kinoo: 150,
       };
 
       let cart = [];
@@ -835,7 +835,8 @@
             (sum, item) => sum + item.price * item.quantity,
             0,
           );
-          const selectedDeliveryArea = document.getElementById("deliveryArea").value;
+          const selectedDeliveryArea =
+            document.getElementById("deliveryArea").value;
           const actualDeliveryFee = deliveryAreaFees[selectedDeliveryArea] || 0;
 
           const finalTotalAmount = subtotal + actualDeliveryFee;
@@ -868,6 +869,8 @@
               image: item.image, // Include image for dashboard thumbnails
               qty: item.quantity.toString(), // stored as string
               price: item.price.toString(), // stored as string
+              color: item.color || null,
+              size: item.size || null,
             })),
             createdAt: serverTimestamp(),
             updatedAt: serverTimestamp(),

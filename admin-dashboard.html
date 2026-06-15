@@ -70,6 +70,34 @@
       let allMessages = [];
       let editingProductId = null;
       let editingOfferId = null;
+
+      const colorsList = [
+        "Black",
+        "White",
+        "Red",
+        "Blue",
+        "Green",
+        "Brown",
+        "Grey",
+        "Navy",
+        "Beige",
+        "Pink",
+        "Yellow",
+      ];
+      const clothingSizes = ["S", "M", "L", "XL", "XXL"];
+      const shoeSizes = [
+        "36",
+        "37",
+        "38",
+        "39",
+        "40",
+        "41",
+        "42",
+        "43",
+        "44",
+        "45",
+      ];
+
       let uploadedImageURLs = [];
       let statsCache = {};
 
@@ -78,6 +106,8 @@
         if (user) {
           document.getElementById("login-screen").style.display = "none";
           document.getElementById("app").style.display = "flex";
+          document.getElementById("initial-loading-screen").style.display =
+            "flex"; // Show spinner on login
           document.getElementById("admin-email").textContent = user.email;
           initDashboard();
         } else {
@@ -123,6 +153,7 @@
 
       const sectionTitles = {
         dashboard: "Dashboard",
+        analytics: "Analytics",
         products: "Products",
         orders: "Orders",
         users: "Customers",
@@ -146,6 +177,7 @@
 
       const loaders = {
         dashboard: loadDashboard,
+        analytics: loadAnalytics,
         products: loadProducts,
         orders: loadOrders,
         offers: loadOffers,
@@ -173,7 +205,11 @@
           const messages = msgSnap.docs.map((d) => ({ id: d.id, ...d.data() }));
 
           const totalRevenue = orders
-            .filter((o) => o.status === "confirmed")
+            .filter((o) =>
+              ["confirmed", "processing", "shipped", "delivered"].includes(
+                o.status,
+              ),
+            )
             .reduce((sum, o) => sum + (parseFloat(o.total) || 0), 0);
 
           document.getElementById("stat-revenue").textContent =
@@ -237,6 +273,9 @@
           drawRevenueChart(orders);
         } catch (e) {
           console.error(e);
+        } finally {
+          document.getElementById("initial-loading-screen").style.display =
+            "none"; // Hide spinner after dashboard loads
         }
       }
 
@@ -244,11 +283,16 @@
         const canvas = document.getElementById("revenue-chart");
         if (!canvas) return;
 
-        // Set canvas resolution for high DPI displays
         const dpr = window.devicePixelRatio || 1;
-        const rect = canvas.getBoundingClientRect();
-        canvas.width = rect.width * dpr;
-        canvas.height = rect.height * dpr;
+        // Use parent container width for the canvas to ensure it doesn't overflow
+        const parent = canvas.parentElement;
+        const W = parent.clientWidth - 40; // Subtract padding
+        const H = 250;
+
+        canvas.width = W * dpr;
+        canvas.height = H * dpr;
+        canvas.style.width = W + "px";
+        canvas.style.height = H + "px";
 
         const ctx = canvas.getContext("2d");
         ctx.scale(dpr, dpr);
@@ -267,140 +311,488 @@
           "Nov",
           "Dec",
         ];
+        const currentYear = new Date().getFullYear();
         const data = Array(12).fill(0);
-        orders.forEach((o) => {
-          if (o.createdAt?.seconds) {
-            const m = new Date(o.createdAt.seconds * 1000).getMonth();
-            data[m] += o.total || 0;
-          }
+
+        // Filter for real, confirmed orders from the CURRENT YEAR only
+        const validOrders = orders.filter((o) => {
+          const date = o.createdAt?.seconds
+            ? new Date(o.createdAt.seconds * 1000)
+            : null;
+          const isConfirmed = [
+            "confirmed",
+            "processing",
+            "shipped",
+            "delivered",
+          ].includes(o.status);
+          return date && date.getFullYear() === currentYear && isConfirmed;
         });
-        const max = Math.max(...data, 1);
-        const W = rect.width,
-          H = rect.height;
-        const pad = { top: 30, right: 30, bottom: 50, left: 70 };
+
+        validOrders.forEach((o) => {
+          const m = new Date(o.createdAt.seconds * 1000).getMonth();
+          data[m] += parseFloat(o.total) || 0;
+        });
+
+        const max = Math.max(...data, 1000);
+        const pad = { top: 30, right: 30, bottom: 40, left: 60 };
         const chartW = W - pad.left - pad.right;
         const chartH = H - pad.top - pad.bottom;
+
         ctx.clearRect(0, 0, W, H);
 
-        // Background
-        ctx.fillStyle = "#ffffff";
-        ctx.fillRect(0, 0, W, H);
-
-        // Grid lines with improved styling
+        // Grid lines
         ctx.strokeStyle = "#e8ddd3";
-        ctx.lineWidth = 1.5;
+        ctx.lineWidth = 1;
         ctx.setLineDash([4, 4]);
-        for (let i = 0; i <= 5; i++) {
-          const y = pad.top + chartH - (chartH / 5) * i;
+        for (let i = 0; i <= 4; i++) {
+          const y = pad.top + chartH - (chartH / 4) * i;
           ctx.beginPath();
           ctx.moveTo(pad.left, y);
           ctx.lineTo(W - pad.right, y);
           ctx.stroke();
 
-          // Y-axis labels with better formatting
           ctx.setLineDash([]);
           ctx.fillStyle = "#8a7a73";
-          ctx.font = "bold 11px 'Work Sans'";
+          ctx.font = "bold 10px 'Work Sans'";
           ctx.textAlign = "right";
           ctx.textBaseline = "middle";
-          const value = Math.round(((max / 5) * i) / 1000);
-          ctx.fillText(`${value}k`, pad.left - 12, y);
+          const val = Math.round(((max / 4) * i) / 1000);
+          ctx.fillText(`${val}k`, pad.left - 10, y);
           ctx.setLineDash([4, 4]);
         }
         ctx.setLineDash([]);
 
-        // Area fill with enhanced gradient
+        // Line Graph
         const stepX = chartW / 11;
-        const grad = ctx.createLinearGradient(0, pad.top, 0, pad.top + chartH);
-        grad.addColorStop(0, "rgba(213, 87, 42, 0.35)");
-        grad.addColorStop(0.5, "rgba(213, 87, 42, 0.15)");
-        grad.addColorStop(1, "rgba(213, 87, 42, 0)");
         ctx.beginPath();
+        ctx.strokeStyle = "#d5572a";
+        ctx.lineWidth = 3;
+        ctx.lineJoin = "round";
+        ctx.lineCap = "round";
+
         data.forEach((v, i) => {
           const x = pad.left + i * stepX;
           const y = pad.top + chartH - (v / max) * chartH;
-          i === 0 ? ctx.moveTo(x, y) : ctx.lineTo(x, y);
+          if (i === 0) ctx.moveTo(x, y);
+          else ctx.lineTo(x, y);
         });
+        ctx.stroke();
+
+        // Area under line
         ctx.lineTo(pad.left + 11 * stepX, pad.top + chartH);
         ctx.lineTo(pad.left, pad.top + chartH);
-        ctx.closePath();
+        const grad = ctx.createLinearGradient(0, pad.top, 0, pad.top + chartH);
+        grad.addColorStop(0, "rgba(213, 87, 42, 0.2)");
+        grad.addColorStop(1, "rgba(213, 87, 42, 0)");
         ctx.fillStyle = grad;
         ctx.fill();
 
-        // Line with shadow effect
-        ctx.shadowColor = "rgba(213, 87, 42, 0.2)";
-        ctx.shadowBlur = 8;
-        ctx.shadowOffsetY = 2;
-        ctx.beginPath();
-        ctx.strokeStyle = "#d5572a";
-        ctx.lineWidth = 3.5;
-        ctx.lineJoin = "round";
-        ctx.lineCap = "round";
+        // Points
         data.forEach((v, i) => {
           const x = pad.left + i * stepX;
           const y = pad.top + chartH - (v / max) * chartH;
-          i === 0 ? ctx.moveTo(x, y) : ctx.lineTo(x, y);
-        });
-        ctx.stroke();
-        ctx.shadowColor = "transparent";
-
-        // Dots with enhanced styling
-        data.forEach((v, i) => {
-          const x = pad.left + i * stepX;
-          const y = pad.top + chartH - (v / max) * chartH;
-
-          // Outer circle (glow)
-          ctx.beginPath();
-          ctx.arc(x, y, 5.5, 0, Math.PI * 2);
-          ctx.fillStyle = "rgba(213, 87, 42, 0.15)";
-          ctx.fill();
-
-          // Inner circle
+          ctx.fillStyle = "#d5572a";
           ctx.beginPath();
           ctx.arc(x, y, 4, 0, Math.PI * 2);
-          ctx.fillStyle = "#d5572a";
           ctx.fill();
+          ctx.strokeStyle = "#fff";
+          ctx.lineWidth = 2;
+          ctx.stroke();
 
-          // White center
-          ctx.beginPath();
-          ctx.arc(x, y, 2, 0, Math.PI * 2);
-          ctx.fillStyle = "#ffffff";
-          ctx.fill();
+          if (v > 0) {
+            ctx.fillStyle = "#6b5b52";
+            ctx.font = "bold 9px 'Work Sans'";
+            ctx.textAlign = "center";
+            const label =
+              v >= 1000 ? (v / 1000).toFixed(1) + "k" : Math.round(v);
+            ctx.fillText(label, x, y - 10);
+          }
+
+          ctx.fillStyle = "#8a7a73";
+          ctx.font = "500 10px 'Work Sans'";
+          ctx.textAlign = "center";
+          ctx.fillText(months[i], x, H - 15);
         });
+      }
 
-        // Month labels with improved styling
-        ctx.fillStyle = "#6b5b52";
-        ctx.font = "500 12px 'Work Sans'";
-        ctx.textAlign = "center";
-        ctx.textBaseline = "top";
+      // ── ANALYTICS ────────────────────────────────────────────────────────────
+      async function loadAnalytics() {
+        try {
+          const [prodSnap, orderSnap] = await Promise.all([
+            getDocs(collection(db, "products")),
+            getDocs(collection(db, "orders")),
+          ]);
+
+          const products = prodSnap.docs.map((d) => ({
+            id: d.id,
+            ...d.data(),
+          }));
+          const orders = orderSnap.docs.map((d) => ({ id: d.id, ...d.data() }));
+
+          // Draw daily revenue line graph
+          drawDailyRevenueChart(orders);
+
+          // Draw daily orders bar graph
+          drawDailyOrdersChart(orders);
+
+          // Draw category doughnut chart
+          drawCategoryChart(products, orders);
+
+          // Render top products
+          renderTopProducts(products, orders);
+        } catch (e) {
+          console.error(e);
+        }
+      }
+
+      function drawDailyRevenueChart(orders) {
+        const canvas = document.getElementById("daily-revenue-chart");
+        if (!canvas) return;
+
+        const dpr = window.devicePixelRatio || 1;
+        const rect = canvas.getBoundingClientRect();
+        const W = rect.width || 600;
+        const H = rect.height || 250;
+        canvas.width = W * dpr;
+        canvas.height = H * dpr;
+
+        const ctx = canvas.getContext("2d");
+        ctx.scale(dpr, dpr);
+
+        const labels = [];
+        const data = [];
+        for (let i = 6; i >= 0; i--) {
+          const d = new Date();
+          d.setDate(d.getDate() - i);
+          labels.push(d.getDate() + "/" + (d.getMonth() + 1));
+          const dayStart = new Date(d.setHours(0, 0, 0, 0)).getTime() / 1000;
+          const dayEnd = new Date(d.setHours(23, 59, 59, 999)).getTime() / 1000;
+          const revenue = orders
+            .filter((o) => {
+              const ts = o.createdAt?.seconds;
+              const isConfirmed = [
+                "confirmed",
+                "processing",
+                "shipped",
+                "delivered",
+              ].includes(o.status);
+              return ts >= dayStart && ts <= dayEnd && isConfirmed;
+            })
+            .reduce((sum, o) => sum + (parseFloat(o.total) || 0), 0);
+          data.push(revenue);
+        }
+
+        const max = Math.max(...data, 5000);
+        const pad = { top: 30, right: 30, bottom: 40, left: 60 };
+        const chartW = W - pad.left - pad.right;
+        const chartH = H - pad.top - pad.bottom;
+
+        ctx.clearRect(0, 0, W, H);
+
+        // Grid lines
+        ctx.strokeStyle = "#e8ddd3";
+        ctx.lineWidth = 1;
+        ctx.setLineDash([4, 4]);
+        for (let i = 0; i <= 4; i++) {
+          const y = pad.top + chartH - (chartH / 4) * i;
+          ctx.beginPath();
+          ctx.moveTo(pad.left, y);
+          ctx.lineTo(W - pad.right, y);
+          ctx.stroke();
+
+          ctx.setLineDash([]);
+          ctx.fillStyle = "#8a7a73";
+          ctx.font = "bold 10px 'Work Sans'";
+          ctx.textAlign = "right";
+          ctx.textBaseline = "middle";
+          const val = Math.round(((max / 4) * i) / 1000);
+          ctx.fillText(`${val}k`, pad.left - 10, y);
+          ctx.setLineDash([4, 4]);
+        }
+        ctx.setLineDash([]);
+
+        // Line Graph
+        const stepX = chartW / 6;
+        ctx.beginPath();
+        ctx.strokeStyle = "#d5572a";
+        ctx.lineWidth = 3;
+        ctx.lineJoin = "round";
+        ctx.lineCap = "round";
+
         data.forEach((v, i) => {
           const x = pad.left + i * stepX;
-          ctx.fillText(months[i], x, H - 20);
+          const y = pad.top + chartH - (v / max) * chartH;
+          if (i === 0) ctx.moveTo(x, y);
+          else ctx.lineTo(x, y);
+        });
+        ctx.stroke();
+
+        // Area under line
+        ctx.lineTo(pad.left + 6 * stepX, pad.top + chartH);
+        ctx.lineTo(pad.left, pad.top + chartH);
+        const grad = ctx.createLinearGradient(0, pad.top, 0, pad.top + chartH);
+        grad.addColorStop(0, "rgba(213, 87, 42, 0.2)");
+        grad.addColorStop(1, "rgba(213, 87, 42, 0)");
+        ctx.fillStyle = grad;
+        ctx.fill();
+
+        // Points and labels
+        data.forEach((v, i) => {
+          const x = pad.left + i * stepX;
+          const y = pad.top + chartH - (v / max) * chartH;
+          ctx.fillStyle = "#d5572a";
+          ctx.beginPath();
+          ctx.arc(x, y, 4, 0, Math.PI * 2);
+          ctx.fill();
+          ctx.strokeStyle = "#fff";
+          ctx.lineWidth = 2;
+          ctx.stroke();
+
+          if (v > 0) {
+            ctx.fillStyle = "#6b5b52";
+            ctx.font = "bold 9px 'Work Sans'";
+            ctx.textAlign = "center";
+            const label =
+              v >= 1000 ? (v / 1000).toFixed(1) + "k" : Math.round(v);
+            ctx.fillText(label, x, y - 10);
+          }
+
+          ctx.fillStyle = "#8a7a73";
+          ctx.font = "500 10px 'Work Sans'";
+          ctx.textAlign = "center";
+          ctx.fillText(labels[i], x, H - 15);
+        });
+      }
+
+      function drawDailyOrdersChart(orders) {
+        const canvas = document.getElementById("daily-orders-chart");
+        if (!canvas) return;
+
+        const dpr = window.devicePixelRatio || 1;
+        const rect = canvas.getBoundingClientRect();
+        const W = rect.width || 600;
+        const H = rect.height || 250;
+        canvas.width = W * dpr;
+        canvas.height = H * dpr;
+
+        const ctx = canvas.getContext("2d");
+        ctx.scale(dpr, dpr);
+
+        const labels = [];
+        const data = [];
+        for (let i = 6; i >= 0; i--) {
+          const d = new Date();
+          d.setDate(d.getDate() - i);
+          labels.push(d.getDate() + "/" + (d.getMonth() + 1));
+          const dayStart = new Date(d.setHours(0, 0, 0, 0)).getTime() / 1000;
+          const dayEnd = new Date(d.setHours(23, 59, 59, 999)).getTime() / 1000;
+          const count = orders.filter((o) => {
+            const ts = o.createdAt?.seconds;
+            return ts >= dayStart && ts <= dayEnd;
+          }).length;
+          data.push(count);
+        }
+
+        const max = Math.max(...data, 5);
+        const pad = { top: 30, right: 30, bottom: 40, left: 40 };
+        const chartW = W - pad.left - pad.right;
+        const chartH = H - pad.top - pad.bottom;
+
+        ctx.clearRect(0, 0, W, H);
+        ctx.strokeStyle = "#e8ddd3";
+        ctx.lineWidth = 1;
+        ctx.setLineDash([4, 4]);
+        for (let i = 0; i <= 4; i++) {
+          const y = pad.top + chartH - (chartH / 4) * i;
+          ctx.beginPath();
+          ctx.moveTo(pad.left, y);
+          ctx.lineTo(W - pad.right, y);
+          ctx.stroke();
+          ctx.setLineDash([]);
+          ctx.fillStyle = "#8a7a73";
+          ctx.font = "bold 10px 'Work Sans'";
+          ctx.textAlign = "right";
+          ctx.fillText(Math.round((max / 4) * i), pad.left - 10, y + 3);
+          ctx.setLineDash([4, 4]);
+        }
+        ctx.setLineDash([]);
+
+        const stepX = chartW / 7;
+        const barWidth = stepX * 0.6;
+        data.forEach((v, i) => {
+          const x = pad.left + i * stepX + (stepX - barWidth) / 2;
+          const barH = (v / max) * chartH;
+          const y = pad.top + chartH - barH;
+          ctx.fillStyle = "#2f6f4f";
+          ctx.beginPath();
+          ctx.roundRect(x, y, barWidth, barH, [4, 4, 0, 0]);
+          ctx.fill();
+          ctx.fillStyle = "#6b5b52";
+          ctx.font = "bold 10px 'Work Sans'";
+          ctx.textAlign = "center";
+          ctx.fillText(v, x + barWidth / 2, y - 8);
+          ctx.fillStyle = "#8a7a73";
+          ctx.font = "500 10px 'Work Sans'";
+          ctx.fillText(labels[i], x + barWidth / 2, H - 15);
+        });
+      }
+
+      function drawCategoryChart(products, orders) {
+        const canvas = document.getElementById("category-chart");
+        if (!canvas) return;
+
+        const dpr = window.devicePixelRatio || 1;
+        const rect = canvas.getBoundingClientRect();
+        const W = rect.width || 300;
+        const H = rect.height || 300;
+        canvas.width = W * dpr;
+        canvas.height = H * dpr;
+
+        const ctx = canvas.getContext("2d");
+        ctx.scale(dpr, dpr);
+
+        // Count items by category
+        const categoryCount = {};
+        orders.forEach((o) => {
+          (o.items || []).forEach((item) => {
+            const product = products.find((p) => p.name === item.name);
+            const category = product?.category || "Other";
+            categoryCount[category] =
+              (categoryCount[category] || 0) + (parseInt(item.qty) || 1);
+          });
         });
 
-        // X-axis line
-        ctx.strokeStyle = "#d0c5bc";
-        ctx.lineWidth = 1.5;
-        ctx.beginPath();
-        ctx.moveTo(pad.left, pad.top + chartH);
-        ctx.lineTo(W - pad.right, pad.top + chartH);
-        ctx.stroke();
+        const categories = Object.keys(categoryCount);
+        const counts = Object.values(categoryCount);
+        const total = counts.reduce((a, b) => a + b, 0);
 
-        // Y-axis line
-        ctx.strokeStyle = "#d0c5bc";
-        ctx.lineWidth = 1.5;
-        ctx.beginPath();
-        ctx.moveTo(pad.left, pad.top);
-        ctx.lineTo(pad.left, pad.top + chartH);
-        ctx.stroke();
+        const colors = [
+          "#d5572a",
+          "#2f6f4f",
+          "#3b6fce",
+          "#c47c0a",
+          "#177777",
+          "#8a7a73",
+        ];
+
+        const centerX = W / 2;
+        const centerY = H / 2;
+        const radius = Math.min(W, H) / 2 - 40;
+
+        let currentAngle = -Math.PI / 2;
+
+        categories.forEach((category, i) => {
+          const sliceAngle = (counts[i] / total) * Math.PI * 2;
+
+          // Draw slice
+          ctx.beginPath();
+          ctx.moveTo(centerX, centerY);
+          ctx.arc(
+            centerX,
+            centerY,
+            radius,
+            currentAngle,
+            currentAngle + sliceAngle,
+          );
+          ctx.closePath();
+          ctx.fillStyle = colors[i % colors.length];
+          ctx.fill();
+
+          // Draw label
+          const labelAngle = currentAngle + sliceAngle / 2;
+          const labelX = centerX + Math.cos(labelAngle) * (radius * 0.7);
+          const labelY = centerY + Math.sin(labelAngle) * (radius * 0.7);
+
+          ctx.fillStyle = "#fff";
+          ctx.font = "bold 12px 'Work Sans'";
+          ctx.textAlign = "center";
+          ctx.textBaseline = "middle";
+          const percentage = ((counts[i] / total) * 100).toFixed(0);
+          ctx.fillText(percentage + "%", labelX, labelY);
+
+          currentAngle += sliceAngle;
+        });
+
+        // Draw legend
+        let legendY = H - 80;
+        categories.forEach((category, i) => {
+          ctx.fillStyle = colors[i % colors.length];
+          ctx.fillRect(20, legendY, 12, 12);
+          ctx.fillStyle = "#6b5b52";
+          ctx.font = "11px 'Work Sans'";
+          ctx.textAlign = "left";
+          ctx.fillText(category + " (" + counts[i] + ")", 40, legendY + 6);
+          legendY += 18;
+        });
+      }
+
+      function renderTopProducts(products, orders) {
+        // Calculate purchases for each product
+        const productPurchases = {};
+        orders.forEach((o) => {
+          (o.items || []).forEach((item) => {
+            const product = products.find((p) => p.name === item.name);
+            if (product) {
+              if (!productPurchases[product.id]) {
+                productPurchases[product.id] = {
+                  ...product,
+                  purchases: 0,
+                  revenue: 0,
+                };
+              }
+              productPurchases[product.id].purchases += parseInt(item.qty) || 1;
+              productPurchases[product.id].revenue +=
+                parseFloat(item.price) * parseInt(item.qty) || 0;
+            }
+          });
+        });
+
+        const topProducts = Object.values(productPurchases)
+          .sort((a, b) => b.revenue - a.revenue)
+          .slice(0, 5);
+
+        const container = document.getElementById("top-products-list");
+        container.innerHTML = topProducts.length
+          ? topProducts
+              .map(
+                (p) => `
+              <div class="top-product-item">
+                <div class="top-product-image">
+                  <img src="${p.images?.[0] || "https://placehold.co/60x60?text=?"}" alt="${p.name}"/>
+                </div>
+                <div class="top-product-info">
+                  <div class="top-product-name">${p.name}</div>
+                  <div class="top-product-meta">
+                    <span class="top-product-sales">${p.purchases} sales</span>
+                    <span class="top-product-revenue">KES ${p.revenue.toLocaleString()}</span>
+                  </div>
+                </div>
+                <div class="top-product-status">
+                  <span class="badge badge-${p.stock > 0 ? "green" : "red"}">${p.stock > 0 ? "In Stock" : "Out"}</span>
+                </div>
+              </div>`,
+              )
+              .join("")
+          : `<p class="empty-note">No products sold yet.</p>`;
       }
 
       // ── PRODUCTS ─────────────────────────────────────────────────────────────
       async function loadProducts() {
-        const snap = await getDocs(
-          query(collection(db, "products"), orderBy("createdAt", "desc")),
-        );
-        allProducts = snap.docs.map((d) => ({ id: d.id, ...d.data() }));
+        const [prodSnap, orderSnap] = await Promise.all([
+          getDocs(
+            query(collection(db, "products"), orderBy("createdAt", "desc")),
+          ),
+          getDocs(collection(db, "orders")),
+        ]);
+        const orders = orderSnap.docs.map((d) => d.data());
+        allProducts = prodSnap.docs.map((d) => {
+          const p = d.data();
+          const purchases = orders.reduce((count, o) => {
+            const itemMatch = (o.items || []).find((it) => it.name === p.name);
+            return count + (itemMatch ? parseInt(itemMatch.qty) : 0);
+          }, 0);
+          return { id: d.id, ...p, purchases };
+        });
         renderProductsTable(allProducts);
       }
 
@@ -411,8 +803,17 @@
             (p) => `
           <tr>
             <td><img src="${p.images?.[0] || "https://placehold.co/48x48?text=?"}" class="prod-thumb" alt="${p.name}"/></td>
-            <td><strong>${p.name}</strong><br/><small>${p.category}</small></td>
+            <td>
+              <strong>${p.name}</strong><br/>
+              <small>${p.category}</small>
+              <div style="font-size: 11px; color: #8a7a73; margin-top: 4px;">
+                ${p.colors?.length ? `Colors: ${p.colors.join(", ")}` : ""}
+                ${p.colors?.length && p.sizes?.length ? " | " : ""}
+                ${p.sizes?.length ? `Sizes: ${p.sizes.join(", ")}` : ""}
+              </div>
+            </td>
             <td>KES ${(p.price || 0).toLocaleString()}</td>
+            <td><strong>${p.purchases || 0}</strong></td>
             <td>${p.stock ?? "—"}</td>
             <td><span class="badge badge-${p.stock > 0 ? "green" : "red"}">${p.stock > 0 ? "In Stock" : "Out"}</span></td>
             <td>
@@ -439,12 +840,23 @@
                     <div class="mobile-card-subtitle">${p.category}</div>
                   </div>
                 </div>
-                <button class="mobile-card-menu-btn" onclick="event.stopPropagation(); toggleProductMenu(this, '${p.id}')">⋯</button>
+                <div style="display: flex; gap: 8px;">
+                  <button class="table-action" style="padding: 6px; margin: 0; border-radius: 50%;" onclick="event.stopPropagation(); openProductModal('${p.id}')">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" width="16" height="16"><line x1="12" y1="5" x2="12" y2="19"></line><line x1="5" y1="12" x2="19" y2="12"></line></svg>
+                  </button>
+                  <button class="table-action danger" style="padding: 6px; margin: 0; border-radius: 50%;" onclick="event.stopPropagation(); deleteProduct('${p.id}')">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" width="16" height="16"><polyline points="3 6 5 6 21 6"></polyline><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"></path></svg>
+                  </button>
+                </div>
               </div>
               <div class="mobile-card-content">
                 <div class="mobile-card-field">
                   <div class="mobile-card-field-label">Price</div>
                   <div class="mobile-card-field-value">KES ${(p.price || 0).toLocaleString()}</div>
+                </div>
+                <div class="mobile-card-field">
+                  <div class="mobile-card-field-label">Purchases</div>
+                  <div class="mobile-card-field-value">${p.purchases || 0}</div>
                 </div>
                 <div class="mobile-card-field">
                   <div class="mobile-card-field-label">Stock</div>
@@ -502,6 +914,21 @@
           form["prod-on-sale"].checked = p.onSale || false;
           form["prod-discount"].value = p.discount || "";
           form["prod-condition"].value = p.condition || "Good";
+
+          toggleSizeOptions(p.category || "Women");
+          (p.colors || []).forEach((c) => {
+            const el = document.querySelector(
+              `input[name="prod-colors"][value="${c}"]`,
+            );
+            if (el) el.checked = true;
+          });
+          (p.sizes || []).forEach((s) => {
+            const el = document.querySelector(
+              `input[name="prod-sizes"][value="${s}"]`,
+            );
+            if (el) el.checked = true;
+          });
+
           uploadedImageURLs = p.images || [];
           renderImagePreviews();
         } else {
@@ -514,6 +941,36 @@
         document.getElementById("product-modal").classList.remove("open");
         editingProductId = null;
       };
+
+      window.toggleSizeOptions = (category) => {
+        const container = document.getElementById("size-options");
+        container.innerHTML = "";
+        const sizes = category === "Shoes" ? shoeSizes : clothingSizes;
+
+        document.getElementById("size-group").style.display =
+          category === "Beauty" ? "none" : "block";
+
+        sizes.forEach((size) => {
+          const label = document.createElement("label");
+          label.className = "form-check";
+          label.style.marginRight = "10px";
+          label.innerHTML = `<input type="checkbox" name="prod-sizes" value="${size}"> ${size}`;
+          container.appendChild(label);
+        });
+      };
+
+      function initColorOptions() {
+        const container = document.getElementById("color-options");
+        container.innerHTML = colorsList
+          .map(
+            (color) => `
+          <label class="form-check" style="margin-right: 10px;">
+            <input type="checkbox" name="prod-colors" value="${color}"> ${color}
+          </label>
+        `,
+          )
+          .join("");
+      }
 
       window.handleImageUpload = async (e) => {
         const files = Array.from(e.target.files);
@@ -587,11 +1044,23 @@
           onSale: form["prod-on-sale"].checked,
           discount: form["prod-discount"].value.trim(),
           condition: form["prod-condition"].value,
+          colors: Array.from(
+            document.querySelectorAll('input[name="prod-colors"]:checked'),
+          ).map((el) => el.value),
+          sizes: Array.from(
+            document.querySelectorAll('input[name="prod-sizes"]:checked'),
+          ).map((el) => el.value),
           images: uploadedImageURLs,
           updatedAt: Timestamp.now(),
         };
-        if (!data.name || !data.price) {
-          showToast("Name and price are required.", "error");
+
+        if (!data.name) {
+          showToast("Product name is required.", "error");
+          return;
+        }
+
+        if (uploadedImageURLs.length === 0) {
+          showToast("At least one product image is required.", "error");
           return;
         }
 
@@ -601,18 +1070,16 @@
         try {
           if (editingProductId) {
             await updateDoc(doc(db, "products", editingProductId), data);
-            showToast("Product updated.");
+            showToast("Product updated successfully.");
           } else {
             data.createdAt = Timestamp.now();
-            data.rating = 0;
-            data.reviews = 0;
             await addDoc(collection(db, "products"), data);
-            showToast("Product added.");
+            showToast("Product added successfully.");
           }
           closeProductModal();
           loadProducts();
         } catch (e) {
-          showToast("Error saving product.", "error");
+          showToast("Error saving product: " + e.message, "error");
         } finally {
           btn.classList.remove("loading");
           btn.disabled = false;
@@ -620,187 +1087,17 @@
       };
 
       window.deleteProduct = async (id) => {
-        if (!confirm("Delete this product? This cannot be undone.")) return;
-        await deleteDoc(doc(db, "products", id));
-        showToast("Product deleted.");
-        loadProducts();
-      };
-
-      // ── OFFERS ──────────────────────────────────────────────────────────────
-      async function loadOffers() {
-        const snap = await getDocs(
-          query(collection(db, "offers"), orderBy("createdAt", "desc")),
-        );
-        allOffers = snap.docs.map((d) => ({ id: d.id, ...d.data() }));
-        renderOffersTable(allOffers);
-      }
-
-      function renderOffersTable(offers) {
-        const tbody = document.getElementById("offers-table-body");
-        tbody.innerHTML = offers
-          .map(
-            (o) => `
-          <tr>
-            <td><img src="${o.images?.[0] || "https://placehold.co/48x48?text=?"}" class="prod-thumb" alt="${o.name}"/></td>
-            <td><strong>${o.name}</strong><br/><small>${o.category}</small></td>
-            <td>KES ${(o.price || 0).toLocaleString()}</td>
-            <td><span class="badge badge-orange">${o.discount || "Sale"}</span></td>
-            <td>
-              <button class="table-action" onclick="openOfferModal('${o.id}')">Edit</button>
-              <button class="table-action danger" onclick="deleteOffer('${o.id}')">Delete</button>
-            </td>
-          </tr>`,
-          )
-          .join("");
-      }
-
-      window.openOfferModal = async (id = null) => {
-        editingOfferId = id;
-        uploadedImageURLs = [];
-        const modal = document.getElementById("offer-modal");
-        const form = document.getElementById("offer-form");
-        const btn = document.getElementById("save-offer-btn");
-        form.reset();
-        document.getElementById("offer-image-preview-list").innerHTML = "";
-        btn.classList.remove("loading");
-        btn.disabled = false;
-
-        if (id) {
-          const snap = await getDoc(doc(db, "offers", id));
-          const o = { id: snap.id, ...snap.data() };
-          form["offer-name"].value = o.name || "";
-          form["offer-category"].value = o.category || "";
-          form["offer-price"].value = o.price || "";
-          form["offer-original-price"].value = o.originalPrice || "";
-          form["offer-discount"].value = o.discount || "";
-          form["offer-seller"].value = o.seller || "";
-          form["offer-description"].value = o.description || "";
-          uploadedImageURLs = o.images || [];
-          renderOfferImagePreviews();
-        }
-        modal.classList.add("open");
-      };
-
-      window.closeOfferModal = () => {
-        document.getElementById("offer-modal").classList.remove("open");
-        editingOfferId = null;
-      };
-
-      window.handleOfferImageUpload = async (e) => {
-        const files = Array.from(e.target.files);
-        for (const file of files) {
-          const reader = new FileReader();
-          reader.onload = (event) => {
-            uploadedImageURLs.push(event.target.result);
-            renderOfferImagePreviews();
-          };
-          reader.readAsDataURL(file);
-        }
-      };
-
-      function renderOfferImagePreviews() {
-        const container = document.getElementById("offer-image-preview-list");
-        container.innerHTML = uploadedImageURLs
-          .map(
-            (url, i) => `
-          <div class="img-preview-item">
-            <img src="${url}" />
-            <button type="button" onclick="removeOfferImage(${i})">✕</button>
-          </div>`,
-          )
-          .join("");
-      }
-
-      window.removeOfferImage = (i) => {
-        uploadedImageURLs.splice(i, 1);
-        renderOfferImagePreviews();
-      };
-
-      window.saveOffer = async () => {
-        const btn = document.getElementById("save-offer-btn");
-        const form = document.getElementById("offer-form");
-        const data = {
-          name: form["offer-name"].value.trim(),
-          category: form["offer-category"].value,
-          price: parseFloat(form["offer-price"].value) || 0,
-          originalPrice: parseFloat(form["offer-original-price"].value) || null,
-          discount: form["offer-discount"].value.trim(),
-          seller: form["offer-seller"].value.trim(),
-          description: form["offer-description"].value.trim(),
-          images: uploadedImageURLs,
-          onSale: true,
-          updatedAt: Timestamp.now(),
-        };
-
-        if (!data.name || !data.price) {
-          showToast("Name and price are required.", "error");
-          return;
-        }
-
-        btn.classList.add("loading");
-        btn.disabled = true;
-
+        if (!confirm("Delete this product?")) return;
         try {
-          if (editingOfferId) {
-            await updateDoc(doc(db, "offers", editingOfferId), data);
-            showToast("Offer updated.");
-          } else {
-            data.createdAt = Timestamp.now();
-            data.rating = 5.0;
-            data.reviews = 0;
-            await addDoc(collection(db, "offers"), data);
-            showToast("Offer added.");
-          }
-          closeOfferModal();
-          loadOffers();
+          await deleteDoc(doc(db, "products", id));
+          showToast("Product deleted.");
+          loadProducts();
         } catch (e) {
-          showToast("Error saving offer.", "error");
-        } finally {
-          btn.classList.remove("loading");
-          btn.disabled = false;
+          showToast("Error: " + e.message, "error");
         }
       };
 
-      window.deleteOffer = async (id) => {
-        if (!confirm("Delete this offer?")) return;
-        await deleteDoc(doc(db, "offers", id));
-        showToast("Offer deleted.");
-        loadOffers();
-      };
-
-      window.toggleProductMenu = (btn, id) => {
-        const menu = document.getElementById(`menu-product-${id}`);
-        document.querySelectorAll(".mobile-card-menu").forEach((m) => {
-          if (m !== menu) m.classList.remove("open");
-        });
-        menu?.classList.toggle("open");
-      };
-
-      window.toggleOrderMenu = (btn, id) => {
-        const menu = document.getElementById(`menu-order-${id}`);
-        document.querySelectorAll(".mobile-card-menu").forEach((m) => {
-          if (m !== menu) m.classList.remove("open");
-        });
-        menu?.classList.toggle("open");
-      };
-
-      window.toggleUserMenu = (btn, id) => {
-        const menu = document.getElementById(`menu-user-${id}`);
-        document.querySelectorAll(".mobile-card-menu").forEach((m) => {
-          if (m !== menu) m.classList.remove("open");
-        });
-        menu?.classList.toggle("open");
-      };
-
-      window.closeAllMenus = () => {
-        document
-          .querySelectorAll(".mobile-card-menu")
-          .forEach((m) => m.classList.remove("open"));
-      };
-
-      document.addEventListener("click", closeAllMenus);
-
-      // ── ORDERS ───────────────────────────────────────────────────────────────
+      // ── ORDERS ──────────────────────────────────────────────────────────────
       async function loadOrders() {
         const snap = await getDocs(
           query(collection(db, "orders"), orderBy("createdAt", "desc")),
@@ -816,18 +1113,14 @@
             (o) => `
           <tr>
             <td><img src="${o.items?.[0]?.image || "https://placehold.co/40x40?text=?"}" class="prod-thumb" alt="Order"/></td>
-            <td>#${o.id.slice(0, 8).toUpperCase()}</td>
+            <td><strong>#${o.id.slice(0, 8).toUpperCase()}</strong></td>
             <td>${o.customerName || "—"}</td>
             <td>${o.customerEmail || "—"}</td>
             <td>KES ${parseFloat(o.total || 0).toLocaleString()}</td>
-            <td>${o.items?.length || 0} item(s)</td>
-            <td>
-              <select class="status-select" onchange="updateOrderStatus('${o.id}', this.value)">
-                ${["pending", "confirmed", "processing", "shipped", "delivered", "cancelled"].map((s) => `<option value="${s}" ${o.status === s ? "selected" : ""}>${capitalize(s)}</option>`).join("")}
-              </select>
-            </td>
+            <td>${(o.items || []).length}</td>
+            <td><span class="badge badge-${statusColor(o.status)}">${o.status || "pending"}</span></td>
             <td>${formatDate(o.createdAt)}</td>
-            <td><button class="table-action" onclick="viewOrder('${o.id}')">Details</button></td>
+            <td><button class="table-action" onclick="viewOrder('${o.id}')">View</button></td>
           </tr>`,
           )
           .join("");
@@ -837,25 +1130,30 @@
           mobileContainer.innerHTML = orders
             .map(
               (o) => `
-            <div class="mobile-card" onclick="viewOrder('${o.id}')">
+            <div class="mobile-card" onclick="event.stopPropagation()">
               <div class="mobile-card-header">
-                <div>
-                  <div class="mobile-card-title">Customer: ${o.customerName || "Unknown"}</div>
-                  <div class="mobile-card-subtitle">Date of Order: ${formatDate(o.createdAt)}</div>
+                <div style="display: flex; align-items: center; gap: 12px;">
+                  <img src="${o.items?.[0]?.image || "https://placehold.co/48x48?text=?"}" style="width: 48px; height: 48px; border-radius: 8px; object-fit: cover; flex-shrink: 0;" alt="Order"/>
+                  <div>
+                    <div class="mobile-card-title">#${o.id.slice(0, 8).toUpperCase()}</div>
+                    <div class="mobile-card-subtitle">${o.customerName || "Customer"}</div>
+                  </div>
                 </div>
                 <button class="mobile-card-menu-btn" onclick="event.stopPropagation(); toggleOrderMenu(this, '${o.id}')">⋯</button>
               </div>
               <div style="margin-bottom: 12px; padding-bottom: 12px; border-bottom: 1px solid var(--border); font-size: 12px; color: #b8a99c;">
-                Order ID: ${o.id.slice(0, 16).toUpperCase()}
+                Order ID: ${o.id.toUpperCase()}
               </div>
               ${(o.items || [])
                 .map(
                   (it) => `
               <div class="mobile-card-item">
-                <img src="${it.image || "https://placehold.co/50x50?text=?"}" class="mobile-card-item-image" alt="${it.name}"/>
+                <img src="${it.image || "https://placehold.co/50x50?text=?"}" class="mobile-card-item-image" alt="${it.name || "Product"}"/>
                 <div class="mobile-card-item-info">
-                  <div class="mobile-card-item-name">${it.name}</div>
-                  <div class="mobile-card-item-price">KES ${(it.price || 0).toLocaleString()} Quantity ${it.qty}</div>
+                  <div class="mobile-card-item-name">${it.name || "Unknown Product"}</div>
+                  ${it.color ? `<div class="variation-row standout-variation"><span class="badge badge-blue" style="font-size:9px">COLOR</span> ${it.color}</div>` : ""}
+                  ${it.size ? `<div class="variation-row standout-variation"><span class="badge badge-orange" style="font-size:9px">SIZE</span> ${it.size}</div>` : ""}
+                  <div class="mobile-card-item-price">KES ${(parseFloat(it.price) || 0).toLocaleString()} | Qty: ${it.qty || 1}</div>
                 </div>
               </div>
               `,
@@ -863,7 +1161,7 @@
                 .join("")}
               <div style="margin-top: 12px; padding-top: 12px; border-top: 1px solid var(--border); display: grid; grid-template-columns: 1fr 1fr; gap: 12px;">
                 <div class="mobile-card-field">
-                  <div class="mobile-card-field-label">Payment Method</div>
+                  <div class="mobile-card-field-label">Payment</div>
                   <div class="mobile-card-field-value">${o.paymentMethod || "—"}</div>
                 </div>
                 <div class="mobile-card-field">
@@ -871,19 +1169,19 @@
                   <div class="mobile-card-field-value"><span class="badge badge-${statusColor(o.status)}">${capitalize(o.status)}</span></div>
                 </div>
                 <div class="mobile-card-field">
-                  <div class="mobile-card-field-label">Estimated Delivery</div>
+                  <div class="mobile-card-field-label">Delivery</div>
                   <div class="mobile-card-field-value">${o.estimatedDelivery || "—"}</div>
                 </div>
                 <div class="mobile-card-field">
-                  <div class="mobile-card-field-label">Total Amount</div>
-                  <div class="mobile-card-field-value">KES ${(o.total || 0).toLocaleString()}</div>
+                  <div class="mobile-card-field-label">Total</div>
+                  <div class="mobile-card-field-value">KES ${(parseFloat(o.total) || 0).toLocaleString()}</div>
                 </div>
               </div>
+              <button class="view-details-btn" onclick="viewOrder('${o.id}')">View Order Details</button>
               <div class="mobile-card-menu" id="menu-order-${o.id}">
-                <select class="mobile-card-menu-item" style="padding: 10px 16px; border: none; background: none; cursor: pointer; font-size: 13px; color: var(--dark); text-align: left; font-family: inherit; transition: background 150ms; border-bottom: 1px solid var(--border);" onchange="event.stopPropagation(); updateOrderStatus('${o.id}', this.value)">
+                <select class="mobile-card-menu-item" style="width:100%; padding: 10px; border:none;" onchange="event.stopPropagation(); updateOrderStatus('${o.id}', this.value)">
                   ${["pending", "confirmed", "processing", "shipped", "delivered", "cancelled"].map((s) => `<option value="${s}" ${o.status === s ? "selected" : ""}>${capitalize(s)}</option>`).join("")}
                 </select>
-                <button class="mobile-card-menu-item" onclick="event.stopPropagation(); viewOrder('${o.id}')">View Details</button>
               </div>
             </div>`,
             )
@@ -932,7 +1230,20 @@
           <table class="data-table" style="margin-top:16px">
             <thead><tr><th>Image</th><th>Item</th><th>Qty</th><th>Price</th></tr></thead>
             <tbody>
-              ${(o.items || []).map((it) => `<tr><td><img src="${it.image || "https://placehold.co/40x40?text=?"}" style="width:40px;height:40px;border-radius:4px;object-fit:cover;"/></td><td>${it.name}</td><td>${it.qty}</td><td>KES ${(parseFloat(it.price) * parseInt(it.qty)).toLocaleString()}</td></tr>`).join("")}
+              ${(o.items || [])
+                .map(
+                  (it) => `
+                <tr>
+                  <td><img src="${it.image || "https://placehold.co/40x40?text=?"}" style="width:40px;height:40px;border-radius:4px;object-fit:cover;"/></td>
+                  <td>
+                    <strong>${it.name}</strong>
+                    ${it.color || it.size ? `<br/><small style="color: #8a7a73">${it.color ? `Color: ${it.color}` : ""} ${it.size ? (it.color ? `| Size: ${it.size}` : `Size: ${it.size}`) : ""}</small>` : ""}
+                  </td>
+                  <td>${it.qty}</td>
+                  <td>KES ${(parseFloat(it.price) * parseInt(it.qty)).toLocaleString()}</td>
+                </tr>`,
+                )
+                .join("")}
               <tr><td colspan="2"><strong>Total</strong></td><td><strong>KES ${parseFloat(o.total || 0).toLocaleString()}</strong></td></tr>
             </tbody>
           </table>
@@ -946,10 +1257,24 @@
 
       // ── USERS ────────────────────────────────────────────────────────────────
       async function loadUsers() {
-        const snap = await getDocs(
-          query(collection(db, "users"), orderBy("createdAt", "desc")),
-        );
-        allUsers = snap.docs.map((d) => ({ id: d.id, ...d.data() }));
+        const [userSnap, orderSnap] = await Promise.all([
+          getDocs(query(collection(db, "users"), orderBy("createdAt", "desc"))),
+          getDocs(collection(db, "orders")),
+        ]);
+        const orders = orderSnap.docs.map((d) => d.data());
+        allUsers = userSnap.docs.map((d) => {
+          const userData = d.data();
+          const userOrders = orders.filter((o) => o.userId === d.id);
+          return {
+            id: d.id,
+            ...userData,
+            ordersCount: userOrders.length,
+            totalSpent: userOrders.reduce(
+              (sum, o) => sum + (parseFloat(o.total) || 0),
+              0,
+            ),
+          };
+        });
         renderUsersTable(allUsers);
       }
 
@@ -1023,6 +1348,98 @@
               u.email?.toLowerCase().includes(q),
           ),
         );
+      };
+
+      // ── OFFERS ──────────────────────────────────────────────────────────────
+      async function loadOffers() {
+        const snap = await getDocs(
+          query(collection(db, "offers"), orderBy("createdAt", "desc")),
+        );
+        allOffers = snap.docs.map((d) => ({ id: d.id, ...d.data() }));
+        renderOffersTable(allOffers);
+      }
+
+      function renderOffersTable(offers) {
+        const tbody = document.getElementById("offers-table-body");
+        tbody.innerHTML = offers
+          .map(
+            (o) => `
+          <tr>
+            <td><img src="${o.image || "https://placehold.co/40x40?text=?"}" class="prod-thumb" alt="${o.name}"/></td>
+            <td><strong>${o.name}</strong></td>
+            <td>KES ${(o.price || 0).toLocaleString()}</td>
+            <td>${o.discount || "—"}%</td>
+            <td>
+              <button class="table-action" onclick="openOfferModal('${o.id}')">Edit</button>
+              <button class="table-action danger" onclick="deleteOffer('${o.id}')">Delete</button>
+            </td>
+          </tr>`,
+          )
+          .join("");
+      }
+
+      window.openOfferModal = async (id = null) => {
+        editingOfferId = id;
+        const modal = document.getElementById("offer-modal");
+        const form = document.getElementById("offer-form");
+        form.reset();
+
+        if (id) {
+          const snap = await getDoc(doc(db, "offers", id));
+          const o = { id: snap.id, ...snap.data() };
+          form["offer-name"].value = o.name || "";
+          form["offer-price"].value = o.price || "";
+          form["offer-discount"].value = o.discount || "";
+          form["offer-image"].value = o.image || "";
+        }
+        modal.classList.add("open");
+      };
+
+      window.closeOfferModal = () => {
+        document.getElementById("offer-modal").classList.remove("open");
+        editingOfferId = null;
+      };
+
+      window.saveOffer = async () => {
+        const form = document.getElementById("offer-form");
+        const data = {
+          name: form["offer-name"].value.trim(),
+          price: parseFloat(form["offer-price"].value) || 0,
+          discount: parseInt(form["offer-discount"].value) || 0,
+          image: form["offer-image"].value.trim(),
+          updatedAt: Timestamp.now(),
+        };
+
+        if (!data.name) {
+          showToast("Offer name is required.", "error");
+          return;
+        }
+
+        try {
+          if (editingOfferId) {
+            await updateDoc(doc(db, "offers", editingOfferId), data);
+            showToast("Offer updated.");
+          } else {
+            data.createdAt = Timestamp.now();
+            await addDoc(collection(db, "offers"), data);
+            showToast("Offer added.");
+          }
+          closeOfferModal();
+          loadOffers();
+        } catch (e) {
+          showToast("Error: " + e.message, "error");
+        }
+      };
+
+      window.deleteOffer = async (id) => {
+        if (!confirm("Delete this offer?")) return;
+        try {
+          await deleteDoc(doc(db, "offers", id));
+          showToast("Offer deleted.");
+          loadOffers();
+        } catch (e) {
+          showToast("Error: " + e.message, "error");
+        }
       };
 
       // ── MESSAGES ─────────────────────────────────────────────────────────────
@@ -1106,140 +1523,164 @@
             const s = snap.data();
             document.getElementById("set-site-name").value = s.siteName || "";
             document.getElementById("set-tagline").value = s.tagline || "";
-            document.getElementById("set-email").value = s.contactEmail || "";
+            document.getElementById("set-email").value = s.email || "";
             document.getElementById("set-phone").value = s.phone || "";
             document.getElementById("set-address").value = s.address || "";
             document.getElementById("set-currency").value = s.currency || "KES";
-            document.getElementById("set-instagram").value = s.instagram || "";
-            document.getElementById("set-facebook").value = s.facebook || "";
             document.getElementById("set-shipping-fee").value =
               s.shippingFee || "";
             document.getElementById("set-free-threshold").value =
               s.freeShippingThreshold || "";
+            document.getElementById("set-instagram").value = s.instagram || "";
+            document.getElementById("set-facebook").value = s.facebook || "";
           }
-        } catch (e) {}
+        } catch (e) {
+          console.error(e);
+        }
       }
 
       window.saveSettings = async () => {
         const data = {
-          siteName: document.getElementById("set-site-name").value.trim(),
-          tagline: document.getElementById("set-tagline").value.trim(),
-          contactEmail: document.getElementById("set-email").value.trim(),
-          phone: document.getElementById("set-phone").value.trim(),
-          address: document.getElementById("set-address").value.trim(),
+          siteName: document.getElementById("set-site-name").value,
+          tagline: document.getElementById("set-tagline").value,
+          email: document.getElementById("set-email").value,
+          phone: document.getElementById("set-phone").value,
+          address: document.getElementById("set-address").value,
           currency: document.getElementById("set-currency").value,
-          instagram: document.getElementById("set-instagram").value.trim(),
-          facebook: document.getElementById("set-facebook").value.trim(),
-          shippingFee:
-            parseFloat(document.getElementById("set-shipping-fee").value) || 0,
-          freeShippingThreshold:
-            parseFloat(document.getElementById("set-free-threshold").value) ||
-            0,
-          updatedAt: Timestamp.now(),
+          shippingFee: parseFloat(
+            document.getElementById("set-shipping-fee").value,
+          ),
+          freeShippingThreshold: parseFloat(
+            document.getElementById("set-free-threshold").value,
+          ),
+          instagram: document.getElementById("set-instagram").value,
+          facebook: document.getElementById("set-facebook").value,
         };
         try {
-          await setDoc(doc(db, "settings", "site"), data, { merge: true });
+          await setDoc(doc(db, "settings", "site"), data);
           showToast("Settings saved.");
         } catch (e) {
-          showToast("Error saving settings.", "error");
+          showToast("Error: " + e.message, "error");
         }
       };
 
       // ── HELPERS ──────────────────────────────────────────────────────────────
-      function formatDate(ts) {
-        if (!ts) return "—";
-        const d = ts.seconds ? new Date(ts.seconds * 1000) : new Date(ts);
-        return d.toLocaleDateString("en-KE", {
-          day: "2-digit",
+      function formatDate(timestamp) {
+        if (!timestamp) return "—";
+        const date = new Date(
+          timestamp.seconds ? timestamp.seconds * 1000 : timestamp,
+        );
+        return date.toLocaleDateString("en-US", {
           month: "short",
+          day: "numeric",
           year: "numeric",
         });
       }
 
-      function statusColor(s) {
-        return (
-          {
-            pending: "orange",
-            confirmed: "green",
-            processing: "blue",
-            shipped: "teal",
-            delivered: "green",
-            cancelled: "red",
-          }[s] || "gray"
-        );
+      function statusColor(status) {
+        const map = {
+          pending: "orange",
+          confirmed: "blue",
+          processing: "blue",
+          shipped: "teal",
+          delivered: "green",
+          cancelled: "red",
+        };
+        return map[status] || "gray";
       }
 
-      function capitalize(s) {
-        return s ? s[0].toUpperCase() + s.slice(1) : "";
+      function capitalize(str) {
+        return str.charAt(0).toUpperCase() + str.slice(1);
       }
 
       function showToast(msg, type = "success") {
-        const t = document.getElementById("toast");
-        t.textContent = msg;
-        t.className = `toast show ${type}`;
-        setTimeout(() => t.classList.remove("show"), 3000);
+        const toast = document.createElement("div");
+        toast.className = `toast toast-${type}`;
+        toast.textContent = msg;
+        document.body.appendChild(toast);
+        setTimeout(() => toast.remove(), 3000);
       }
 
-      // Expose navigate globally for inline HTML buttons
-      window.navigate = navigate;
+      window.toggleOrderMenu = (btn, id) => {
+        const menu = document.getElementById(`menu-order-${id}`);
+        menu.classList.toggle("show");
+      };
+
+      window.toggleUserMenu = (btn, id) => {
+        const menu = document.getElementById(`menu-user-${id}`);
+        menu.classList.toggle("show");
+      };
+
+      // Resize handler to redraw charts when window size changes
+      let resizeTimer;
+      window.addEventListener("resize", () => {
+        clearTimeout(resizeTimer);
+        resizeTimer = setTimeout(() => {
+          if (currentSection === "dashboard") loadDashboard();
+          if (currentSection === "analytics") loadAnalytics();
+        }, 250);
+      });
+
+      // Initialize
+      initColorOptions();
     </script>
 
     <style>
-      :root {
-        --primary: #d5572a;
-        --primary-dark: #b8451f;
-        --accent: #2f6f4f;
-        --gold: #e3a23a;
-        --dark: #2c2624;
-        --light: #fdf8f3;
-        --border: #f0e2d3;
-        --sidebar-w: 240px;
-      }
-
       * {
-        box-sizing: border-box;
         margin: 0;
         padding: 0;
+        box-sizing: border-box;
+      }
+      html,
+      body {
+        max-width: 100%;
+        overflow-x: hidden;
+      }
+
+      :root {
+        --primary: #d5572a;
+        --primary-dark: #b84620;
+        --accent: #2f6f4f;
+        --gold: #c47c0a;
+        --dark: #2c2622;
+        --light: #fdf5ef;
+        --border: #e8ddd3;
+        --sidebar-w: 260px;
       }
 
       body {
         font-family: "Work Sans", sans-serif;
-        background: var(--light);
+        background: #faf8f5;
         color: var(--dark);
-        height: 100vh;
-        overflow: hidden;
       }
 
-      /* ── LOGIN ─────────────────────────────────────────────── */
+      /* ── LOGIN ────────────────────────────────────────────────── */
       #login-screen {
-        position: fixed;
-        inset: 0;
-        background: var(--light);
         display: flex;
         align-items: center;
         justify-content: center;
-        z-index: 9999;
+        min-height: 100vh;
+        background: linear-gradient(135deg, #fdf5ef 0%, #f5ede5 100%);
       }
 
       .login-card {
         background: white;
         border-radius: 20px;
-        padding: 48px 40px;
+        padding: 40px;
         width: 100%;
-        max-width: 420px;
-        box-shadow: 0 8px 40px rgba(44, 38, 36, 0.12);
+        max-width: 380px;
+        box-shadow: 0 10px 40px rgba(44, 38, 36, 0.08);
         border: 1px solid var(--border);
       }
 
       .login-logo {
-        font-family: "Fraunces", serif;
-        font-size: 26px;
-        font-weight: 600;
-        color: var(--dark);
-        margin-bottom: 8px;
         display: flex;
         align-items: center;
         gap: 10px;
+        font-family: "Fraunces", serif;
+        font-size: 24px;
+        font-weight: 600;
+        margin-bottom: 8px;
       }
 
       .login-logo span {
@@ -1247,70 +1688,68 @@
       }
 
       .login-sub {
-        color: #8a7a73;
         font-size: 14px;
-        margin-bottom: 32px;
+        color: #8a7a73;
+        margin-bottom: 24px;
       }
 
       .login-label {
         display: block;
         font-size: 13px;
         font-weight: 600;
-        margin-bottom: 6px;
         color: var(--dark);
+        margin-bottom: 6px;
+        margin-top: 16px;
       }
 
       .login-input {
         width: 100%;
-        padding: 12px 16px;
+        padding: 10px 14px;
         border: 1.5px solid var(--border);
         border-radius: 10px;
-        font-size: 15px;
+        font-size: 14px;
         font-family: inherit;
         outline: none;
         transition: border-color 200ms;
-        background: var(--light);
-        margin-bottom: 16px;
       }
 
       .login-input:focus {
         border-color: var(--primary);
       }
 
+      #login-error {
+        color: #c0392b;
+        font-size: 12px;
+        margin-top: 8px;
+        margin-bottom: 16px;
+      }
+
       .login-btn {
         width: 100%;
+        padding: 12px;
         background: var(--primary);
         color: white;
         border: none;
-        padding: 14px;
         border-radius: 10px;
-        font-size: 15px;
+        font-size: 14px;
         font-weight: 600;
         cursor: pointer;
-        font-family: inherit;
+        margin-top: 24px;
         transition: background 200ms;
-        margin-top: 4px;
       }
 
       .login-btn:hover {
         background: var(--primary-dark);
       }
 
-      #login-error {
-        color: #c0392b;
-        font-size: 13px;
-        margin-top: 8px;
-        min-height: 18px;
-      }
-
-      /* ── APP SHELL ─────────────────────────────────────────── */
+      /* ── APP LAYOUT ────────────────────────────────────────────── */
       #app {
-        display: none;
+        display: flex;
         height: 100vh;
-        overflow: hidden;
+        background: #faf8f5;
       }
 
-      /* ── SIDEBAR ──────────────────────────────────────────── */
+      /* ── SIDEBAR ───────────────────────────────────────────────── */
       #sidebar {
         width: var(--sidebar-w);
         background: white;
@@ -1468,7 +1907,7 @@
         color: var(--primary);
       }
 
-      /* ── OVERLAY ──────────────────────────────────────────── */
+      /* ── OVERLAY ──────────────────────────────────────────────── */
       #sidebar-overlay {
         display: none;
         position: fixed;
@@ -1481,7 +1920,7 @@
         display: block;
       }
 
-      /* ── MAIN AREA ────────────────────────────────────────── */
+      /* ── MAIN AREA ────────────────────────────────────────────── */
       #main {
         margin-left: var(--sidebar-w);
         display: flex;
@@ -1491,7 +1930,7 @@
         flex: 1;
       }
 
-      /* ── TOPBAR ───────────────────────────────────────────── */
+      /* ── TOPBAR ───────────────────────────────────────────────── */
       #topbar {
         background: white;
         border-bottom: 1px solid var(--border);
@@ -1525,7 +1964,7 @@
         color: var(--dark);
       }
 
-      /* ── CONTENT ──────────────────────────────────────────── */
+      /* ── CONTENT ──────────────────────────────────────────────── */
       #content {
         flex: 1;
         overflow-y: auto;
@@ -1536,12 +1975,13 @@
         display: none;
       }
 
-      /* ── STAT CARDS ───────────────────────────────────────── */
+      /* ── STAT CARDS ───────────────────────────────────────────── */
       .stats-grid {
         display: grid;
-        grid-template-columns: repeat(4, 1fr);
+        grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
         gap: 16px;
         margin-bottom: 24px;
+        width: 100%;
       }
 
       .stat-card {
@@ -1551,23 +1991,47 @@
         border: 1px solid var(--border);
         position: relative;
         overflow: hidden;
+        transition:
+          transform 200ms,
+          box-shadow 200ms;
+      }
+      .stat-card:hover {
+        transform: translateY(-2px);
+        box-shadow: 0 4px 12px rgba(0, 0, 0, 0.05);
+      }
+
+      .stat-card.orange {
+        border-left: 4px solid var(--primary);
+        background: linear-gradient(to right, #fff, #fef0ea);
+      }
+      .stat-card.green {
+        border-left: 4px solid var(--accent);
+        background: linear-gradient(to right, #fff, #e8f5ef);
+      }
+      .stat-card.gold {
+        border-left: 4px solid var(--gold);
+        background: linear-gradient(to right, #fff, #fef7e8);
+      }
+      .stat-card.blue {
+        border-left: 4px solid #3b6fce;
+        background: linear-gradient(to right, #fff, #e8f0fe);
       }
 
       .stat-label {
-        font-size: 12px;
-        font-weight: 600;
-        color: #b8a99c;
+        font-size: 11px;
+        font-weight: 700;
+        color: #8a7a73;
         text-transform: uppercase;
-        letter-spacing: 1px;
-        margin-bottom: 6px;
+        letter-spacing: 0.5px;
+        margin-bottom: 8px;
       }
 
       .stat-value {
         font-family: "Fraunces", serif;
-        font-size: 28px;
-        font-weight: 600;
+        font-size: 26px;
+        font-weight: 700;
         color: var(--dark);
-        line-height: 1;
+        line-height: 1.2;
       }
 
       .stat-icon {
@@ -1575,41 +2039,44 @@
         right: 20px;
         top: 50%;
         transform: translateY(-50%);
-        width: 44px;
-        height: 44px;
-        border-radius: 12px;
+        width: 42px;
+        height: 42px;
+        border-radius: 10px;
         display: flex;
         align-items: center;
         justify-content: center;
       }
 
       .stat-icon svg {
-        width: 22px;
-        height: 22px;
+        width: 20px;
+        height: 20px;
       }
 
       .stat-icon.orange {
-        background: #fef0ea;
-        color: var(--primary);
+        background: var(--primary);
+        color: white;
       }
       .stat-icon.green {
-        background: #e8f5ef;
-        color: var(--accent);
+        background: var(--accent);
+        color: white;
       }
       .stat-icon.gold {
-        background: #fef7e8;
-        color: var(--gold);
+        background: var(--gold);
+        color: white;
       }
       .stat-icon.blue {
-        background: #e8f0fe;
-        color: #3b6fce;
+        background: #3b6fce;
+        color: white;
       }
 
-      /* ── DASHBOARD GRID ────────────────────────────────────── */
+      /* ── DASHBOARD GRID ────────────────────────────────────────── */
       .dashboard-grid {
         display: grid;
         grid-template-columns: 1fr 320px;
         gap: 20px;
+        width: 100%;
+        max-width: 100%;
+        overflow: hidden;
       }
 
       .card {
@@ -1617,6 +2084,8 @@
         border-radius: 14px;
         border: 1px solid var(--border);
         overflow: hidden;
+        width: 100%;
+        max-width: 100%;
       }
 
       .card-header {
@@ -1633,7 +2102,7 @@
         font-weight: 600;
       }
 
-      /* ── TABLE ─────────────────────────────────────────────── */
+      /* ── TABLE ─────────────────────────────────────────────────── */
       .data-table {
         width: 100%;
         border-collapse: collapse;
@@ -1664,7 +2133,7 @@
         background: #fdf5ef;
       }
 
-      /* ── BADGE ─────────────────────────────────────────────── */
+      /* ── BADGE ─────────────────────────────────────────────────── */
       .badge {
         display: inline-block;
         padding: 3px 10px;
@@ -1699,7 +2168,7 @@
         color: #6b5b52;
       }
 
-      /* ── TABLE ACTIONS ─────────────────────────────────────── */
+      /* ── TABLE ACTIONS ─────────────────────────────────────────── */
       .table-action {
         background: var(--light);
         border: 1px solid var(--border);
@@ -1725,7 +2194,7 @@
         border-color: #f5c6c6;
       }
 
-      /* ── LOW STOCK ─────────────────────────────────────────── */
+      /* ── LOW STOCK ─────────────────────────────────────────────── */
       .low-stock-item {
         display: flex;
         align-items: center;
@@ -1760,7 +2229,7 @@
         color: #b8a99c;
       }
 
-      /* ── SECTION TOOLBAR ───────────────────────────────────── */
+      /* ── SECTION TOOLBAR ───────────────────────────────────────── */
       .section-toolbar {
         display: flex;
         gap: 12px;
@@ -1844,58 +2313,307 @@
         background: var(--primary-dark);
       }
 
-      /* ── PRODUCT THUMB ─────────────────────────────────────── */
+      /* ── PRODUCT THUMB ────────────────────────────────────────── */
       .prod-thumb {
-        width: 48px;
-        height: 48px;
+        width: 40px;
+        height: 40px;
         border-radius: 8px;
         object-fit: cover;
       }
 
-      /* ── AVATAR ────────────────────────────────────────────── */
       .avatar {
-        width: 36px;
-        height: 36px;
+        width: 32px;
+        height: 32px;
         border-radius: 50%;
-        background: var(--primary);
-        color: white;
+        background: var(--light);
         display: flex;
         align-items: center;
         justify-content: center;
-        font-weight: 700;
-        font-size: 14px;
+        font-size: 12px;
+        font-weight: 600;
+        color: var(--dark);
+      }
+
+      /* ── EMPTY NOTE ────────────────────────────────────────────── */
+      .empty-note {
+        padding: 20px;
+        text-align: center;
+        color: #b8a99c;
+        font-size: 13px;
+      }
+
+      /* ── TOAST ─────────────────────────────────────────────────── */
+      .toast {
+        position: fixed;
+        bottom: 20px;
+        right: 20px;
+        padding: 12px 20px;
+        border-radius: 10px;
+        font-size: 13px;
+        font-weight: 600;
+        z-index: 9999;
+        animation: slideIn 300ms ease-out;
+      }
+
+      @keyframes slideIn {
+        from {
+          transform: translateX(400px);
+          opacity: 0;
+        }
+        to {
+          transform: translateX(0);
+          opacity: 1;
+        }
+      }
+
+      .toast-success {
+        background: #e8f5ef;
+        color: #1d7a4a;
+      }
+
+      .toast-error {
+        background: #fdecea;
+        color: #c0392b;
+      }
+
+      /* ── ANALYTICS SECTION ─────────────────────────────────────── */
+      .analytics-grid {
+        display: grid;
+        grid-template-columns: 1fr 1fr;
+        gap: 20px;
+        margin-bottom: 20px;
+        width: 100%;
+      }
+
+      .analytics-card {
+        background: white;
+        border-radius: 14px;
+        border: 1px solid var(--border);
+        padding: 20px;
+      }
+
+      .analytics-card-title {
+        font-family: "Fraunces", serif;
+        font-size: 16px;
+        font-weight: 600;
+        margin-bottom: 16px;
+        color: var(--dark);
+      }
+
+      .analytics-chart {
+        width: 100%;
+        height: 250px;
+        display: block;
+      }
+
+      /* ── TOP PRODUCTS ──────────────────────────────────────────── */
+      .top-products-card {
+        background: white;
+        border-radius: 14px;
+        border: 1px solid var(--border);
+        padding: 20px;
+      }
+
+      .top-products-title {
+        font-family: "Fraunces", serif;
+        font-size: 16px;
+        font-weight: 600;
+        margin-bottom: 16px;
+        color: var(--dark);
+      }
+
+      #top-products-list {
+        display: flex;
+        flex-direction: column;
+        gap: 12px;
+      }
+
+      .top-product-item {
+        display: flex;
+        align-items: center;
+        gap: 12px;
+        padding: 12px;
+        border: 1px solid var(--border);
+        border-radius: 10px;
+        transition: all 150ms;
+      }
+
+      .top-product-item:hover {
+        background: var(--light);
+        border-color: var(--primary);
+      }
+
+      .top-product-image {
         flex-shrink: 0;
       }
 
-      /* ── STATUS SELECT ─────────────────────────────────────── */
-      .status-select {
-        padding: 5px 10px;
-        border: 1.5px solid var(--border);
+      .top-product-image img {
+        width: 60px;
+        height: 60px;
         border-radius: 8px;
-        font-size: 13px;
-        font-family: inherit;
-        cursor: pointer;
-        outline: none;
-        background: white;
+        object-fit: cover;
       }
 
-      /* ── MESSAGES ──────────────────────────────────────────── */
+      .top-product-info {
+        flex: 1;
+        min-width: 0;
+      }
+
+      .top-product-name {
+        font-size: 13px;
+        font-weight: 600;
+        color: var(--dark);
+        margin-bottom: 4px;
+        white-space: nowrap;
+        overflow: hidden;
+        text-overflow: ellipsis;
+      }
+
+      .top-product-meta {
+        display: flex;
+        gap: 12px;
+        font-size: 12px;
+        color: #b8a99c;
+      }
+
+      .top-product-sales {
+        font-weight: 600;
+      }
+
+      .top-product-revenue {
+        font-weight: 600;
+        color: var(--primary);
+      }
+
+      .top-product-status {
+        flex-shrink: 0;
+      }
+
+      /* ── MODAL ─────────────────────────────────────────────────── */
+      .modal {
+        display: none;
+        position: fixed;
+        inset: 0;
+        background: rgba(44, 38, 36, 0.5);
+        z-index: 500;
+        align-items: center;
+        justify-content: center;
+      }
+
+      .modal.open {
+        display: flex;
+      }
+
+      .modal-content {
+        background: white;
+        border-radius: 14px;
+        max-width: 600px;
+        width: 90%;
+        max-height: 90vh;
+        overflow-y: auto;
+      }
+
+      .modal-header {
+        padding: 20px;
+        border-bottom: 1px solid var(--border);
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+      }
+
+      .modal-title {
+        font-family: "Fraunces", serif;
+        font-size: 18px;
+        font-weight: 600;
+      }
+
+      .modal-close {
+        background: none;
+        border: none;
+        font-size: 24px;
+        cursor: pointer;
+        color: #b8a99c;
+      }
+
+      .modal-body {
+        padding: 20px;
+      }
+
+      /* ── FORM ──────────────────────────────────────────────────── */
+      .form-row {
+        display: grid;
+        grid-template-columns: 1fr 1fr;
+        gap: 16px;
+        margin-bottom: 16px;
+      }
+
+      .form-group {
+        display: flex;
+        flex-direction: column;
+      }
+
+      .form-label {
+        font-size: 13px;
+        font-weight: 600;
+        color: var(--dark);
+        margin-bottom: 6px;
+      }
+
+      .form-input,
+      .form-select,
+      .form-textarea {
+        padding: 10px 14px;
+        border: 1.5px solid var(--border);
+        border-radius: 10px;
+        font-size: 14px;
+        font-family: inherit;
+        outline: none;
+        background: white;
+        color: var(--dark);
+        transition: border-color 200ms;
+      }
+
+      .form-input:focus,
+      .form-select:focus,
+      .form-textarea:focus {
+        border-color: var(--primary);
+      }
+
+      .form-textarea {
+        resize: vertical;
+        min-height: 100px;
+      }
+
+      .form-check {
+        display: flex;
+        align-items: center;
+        gap: 8px;
+        font-size: 13px;
+        cursor: pointer;
+      }
+
+      .form-check input {
+        cursor: pointer;
+      }
+
+      /* ── MESSAGE CARDS ─────────────────────────────────────────── */
       .msg-card {
         display: flex;
-        align-items: flex-start;
-        gap: 14px;
-        padding: 16px 20px;
+        align-items: center;
+        gap: 12px;
+        padding: 12px 16px;
         border-bottom: 1px solid var(--border);
         cursor: pointer;
         transition: background 150ms;
+        position: relative;
       }
 
       .msg-card:hover {
-        background: #fdf5ef;
+        background: var(--light);
       }
 
       .msg-card.unread {
-        background: #fef8f4;
+        background: #fef0ea;
       }
 
       .msg-avatar {
@@ -1908,260 +2626,81 @@
         align-items: center;
         justify-content: center;
         font-weight: 700;
-        font-size: 15px;
         flex-shrink: 0;
       }
 
       .msg-avatar.large {
-        width: 52px;
-        height: 52px;
-        font-size: 20px;
+        width: 60px;
+        height: 60px;
+        font-size: 24px;
       }
 
       .msg-content {
         flex: 1;
+        min-width: 0;
       }
 
       .msg-meta {
         display: flex;
+        align-items: center;
         justify-content: space-between;
+        margin-bottom: 4px;
+      }
+
+      .msg-meta strong {
         font-size: 13px;
-        margin-bottom: 2px;
       }
 
       .msg-meta span {
-        color: #b8a99c;
         font-size: 12px;
+        color: #b8a99c;
       }
 
       .msg-subject {
         font-size: 13px;
         font-weight: 600;
-        margin-bottom: 2px;
+        color: var(--dark);
+        margin-bottom: 4px;
       }
 
       .msg-preview {
         font-size: 12px;
         color: #8a7a73;
+        white-space: nowrap;
+        overflow: hidden;
+        text-overflow: ellipsis;
+      }
+
+      .msg-detail-header {
+        display: flex;
+        align-items: center;
+        gap: 16px;
+        padding-bottom: 16px;
+        border-bottom: 1px solid var(--border);
+        margin-bottom: 16px;
+      }
+
+      .msg-detail-header h3 {
+        font-size: 16px;
+        margin-bottom: 4px;
+      }
+
+      .msg-detail-header small {
+        font-size: 12px;
+        color: #b8a99c;
       }
 
       .unread-dot {
         width: 8px;
         height: 8px;
-        border-radius: 50%;
         background: var(--primary);
+        border-radius: 50%;
         flex-shrink: 0;
-        margin-top: 6px;
       }
 
-      /* ── MODALS ────────────────────────────────────────────── */
-      .modal-backdrop {
-        position: fixed;
-        inset: 0;
-        background: rgba(44, 38, 36, 0.45);
-        display: none;
-        align-items: flex-start;
-        justify-content: center;
-        z-index: 1000;
-        padding: 40px 20px;
-        overflow-y: auto;
-      }
-
-      .modal-backdrop.open {
-        display: flex;
-      }
-
-      .modal {
-        background: white;
-        border-radius: 18px;
-        width: 100%;
-        max-width: 600px;
-        box-shadow: 0 24px 60px rgba(44, 38, 36, 0.2);
-        overflow: hidden;
-      }
-
-      .modal-header {
-        padding: 20px 24px;
-        border-bottom: 1px solid var(--border);
-        display: flex;
-        align-items: center;
-        justify-content: space-between;
-      }
-
-      .modal-header h3 {
-        font-family: "Fraunces", serif;
-        font-size: 18px;
-        font-weight: 600;
-      }
-
-      .modal-close {
-        background: none;
-        border: none;
-        font-size: 22px;
-        cursor: pointer;
-        color: #b8a99c;
-        line-height: 1;
-        padding: 0;
-      }
-
-      .modal-close:hover {
-        color: var(--primary);
-      }
-
-      .modal-body {
-        padding: 24px;
-        max-height: 70vh;
-        overflow-y: auto;
-      }
-
-      .modal-footer {
-        padding: 16px 24px;
-        border-top: 1px solid var(--border);
-        display: flex;
-        justify-content: flex-end;
-        gap: 12px;
-      }
-
-      .btn-ghost {
-        background: none;
-        border: 1.5px solid var(--border);
-        color: var(--dark);
-        padding: 10px 20px;
-        border-radius: 10px;
-        font-size: 14px;
-        font-weight: 600;
-        cursor: pointer;
-        font-family: inherit;
-        transition: all 150ms;
-      }
-
-      .btn-ghost:hover {
-        border-color: var(--primary);
-        color: var(--primary);
-      }
-
-      /* ── FORM FIELDS ───────────────────────────────────────── */
-      .form-row {
-        display: grid;
-        grid-template-columns: 1fr 1fr;
-        gap: 16px;
-        margin-bottom: 16px;
-      }
-
-      .form-group {
-        margin-bottom: 16px;
-      }
-
-      .form-label {
-        display: block;
-        font-size: 13px;
-        font-weight: 600;
-        margin-bottom: 6px;
-        color: var(--dark);
-      }
-
-      .form-input,
-      .form-select,
-      .form-textarea {
-        width: 100%;
-        padding: 10px 14px;
-        border: 1.5px solid var(--border);
-        border-radius: 10px;
-        font-size: 14px;
-        font-family: inherit;
-        outline: none;
-        transition: border-color 200ms;
-        background: var(--light);
-        color: var(--dark);
-      }
-
-      .form-input:focus,
-      .form-select:focus,
-      .form-textarea:focus {
-        border-color: var(--primary);
-      }
-
-      .form-textarea {
-        resize: vertical;
-        min-height: 90px;
-      }
-
-      .form-check {
-        display: flex;
-        align-items: center;
-        gap: 8px;
-        font-size: 14px;
-        cursor: pointer;
-      }
-
-      .form-check input {
-        accent-color: var(--primary);
-        width: 16px;
-        height: 16px;
-      }
-
-      /* ── IMAGE PREVIEW ─────────────────────────────────────── */
-      #image-preview-list {
-        display: flex;
-        flex-wrap: wrap;
-        gap: 10px;
-        margin-top: 10px;
-      }
-
-      .img-preview-item {
-        position: relative;
-      }
-
-      .img-preview-item img {
-        width: 72px;
-        height: 72px;
-        border-radius: 10px;
-        object-fit: cover;
-        border: 1.5px solid var(--border);
-      }
-
-      .img-preview-item button {
-        position: absolute;
-        top: -6px;
-        right: -6px;
-        width: 20px;
-        height: 20px;
-        border-radius: 50%;
-        background: var(--primary);
-        color: white;
-        border: none;
-        cursor: pointer;
-        font-size: 11px;
-        line-height: 1;
-        display: flex;
-        align-items: center;
-        justify-content: center;
-      }
-
-      #upload-progress {
-        display: none;
-        margin-top: 8px;
-        font-size: 13px;
-        color: #b8a99c;
-      }
-
-      /* ── ORDER DETAIL ──────────────────────────────────────── */
-      .order-detail-grid {
-        display: grid;
-        grid-template-columns: 1fr 1fr;
-        gap: 12px;
-        font-size: 14px;
-      }
-
-      .order-detail-grid div {
-        background: var(--light);
-        padding: 12px;
-        border-radius: 10px;
-      }
-
-      /* ── SETTINGS ──────────────────────────────────────────── */
+      /* ── SETTINGS ──────────────────────────────────────────────── */
       .settings-section {
-        margin-bottom: 28px;
+        margin-bottom: 32px;
       }
 
       .settings-section-title {
@@ -2169,62 +2708,10 @@
         font-size: 16px;
         font-weight: 600;
         margin-bottom: 16px;
-        padding-bottom: 10px;
-        border-bottom: 1px solid var(--border);
+        color: var(--dark);
       }
 
-      /* ── TOAST ─────────────────────────────────────────────── */
-      .toast {
-        position: fixed;
-        bottom: 28px;
-        right: 28px;
-        background: var(--dark);
-        color: white;
-        padding: 12px 20px;
-        border-radius: 10px;
-        font-size: 14px;
-        font-weight: 500;
-        opacity: 0;
-        transform: translateY(12px);
-        transition: all 250ms;
-        z-index: 9999;
-        pointer-events: none;
-        box-shadow: 0 8px 24px rgba(44, 38, 36, 0.25);
-      }
-
-      .toast.show {
-        opacity: 1;
-        transform: translateY(0);
-      }
-      .toast.error {
-        background: #c0392b;
-      }
-      .toast.success {
-        background: var(--accent);
-      }
-
-      /* ── REVENUE CHART ─────────────────────────────────────── */
-      #revenue-chart {
-        width: 100%;
-        height: 180px;
-        display: block;
-      }
-
-      /* ── MSG DETAIL HEADER ─────────────────────────────────── */
-      .msg-detail-header {
-        display: flex;
-        align-items: center;
-        gap: 14px;
-      }
-
-      /* ── EMPTY STATE ───────────────────────────────────────── */
-      .empty-note {
-        padding: 24px 20px;
-        color: #b8a99c;
-        font-size: 14px;
-      }
-
-      /* ── MOBILE CARD LAYOUT ────────────────────────────────── */
+      /* ── MOBILE CARDS ──────────────────────────────────────────── */
       .mobile-cards-container {
         display: none;
         flex-direction: column;
@@ -2237,78 +2724,65 @@
         border-radius: 12px;
         padding: 16px;
         position: relative;
-        cursor: pointer;
-        transition: all 200ms;
-      }
-
-      .mobile-card:active {
-        background: #fdf5ef;
       }
 
       .mobile-card-header {
         display: flex;
+        align-items: center;
         justify-content: space-between;
-        align-items: flex-start;
         margin-bottom: 12px;
       }
 
       .mobile-card-title {
-        font-weight: 600;
         font-size: 14px;
+        font-weight: 600;
         color: var(--dark);
       }
 
       .mobile-card-subtitle {
         font-size: 12px;
         color: #b8a99c;
-        margin-top: 2px;
       }
 
       .mobile-card-menu-btn {
         background: none;
         border: none;
-        cursor: pointer;
-        padding: 4px 8px;
-        color: #b8a99c;
         font-size: 18px;
-        line-height: 1;
-        position: relative;
-        z-index: 10;
-      }
-
-      .mobile-card-menu-btn:active {
-        color: var(--primary);
+        cursor: pointer;
+        color: #b8a99c;
+        padding: 0;
       }
 
       .mobile-card-menu {
+        display: none;
         position: absolute;
         top: 40px;
-        right: 12px;
+        right: 16px;
         background: white;
         border: 1px solid var(--border);
-        border-radius: 8px;
-        box-shadow: 0 4px 12px rgba(44, 38, 36, 0.15);
-        z-index: 1001;
-        display: none;
-        flex-direction: column;
+        border-radius: 10px;
+        overflow: hidden;
+        z-index: 100;
         min-width: 150px;
       }
 
-      .mobile-card-menu.open {
-        display: flex;
+      .mobile-card-menu.show {
+        display: block;
       }
 
       .mobile-card-menu-item {
+        display: block;
+        width: 100%;
         padding: 10px 16px;
         border: none;
         background: none;
-        cursor: pointer;
-        font-size: 13px;
-        color: var(--dark);
         text-align: left;
-        font-family: inherit;
-        transition: background 150ms;
+        font-size: 13px;
+        font-weight: 600;
+        color: var(--dark);
+        cursor: pointer;
         border-bottom: 1px solid var(--border);
+        font-family: inherit;
       }
 
       .mobile-card-menu-item:last-child {
@@ -2392,7 +2866,75 @@
         margin-top: 2px;
       }
 
-      /* ── RESPONSIVE ────────────────────────────────────────── */
+      /* ── ORDER DETAIL GRID ─────────────────────────────────────── */
+      .order-detail-grid {
+        display: grid;
+        grid-template-columns: repeat(3, 1fr);
+        gap: 16px;
+        margin-bottom: 16px;
+        padding-bottom: 16px;
+        border-bottom: 1px solid var(--border);
+      }
+
+      .order-detail-grid div {
+        font-size: 13px;
+      }
+
+      .order-detail-grid strong {
+        display: block;
+        font-size: 11px;
+        color: #b8a99c;
+        text-transform: uppercase;
+        font-weight: 700;
+        letter-spacing: 0.5px;
+        margin-bottom: 6px;
+      }
+
+      /* ── IMAGE PREVIEW ─────────────────────────────────────────── */
+      #image-preview-list {
+        display: grid;
+        grid-template-columns: repeat(auto-fill, minmax(80px, 1fr));
+        gap: 12px;
+        margin-bottom: 16px;
+      }
+
+      .img-preview-item {
+        position: relative;
+        border-radius: 10px;
+        overflow: hidden;
+        border: 1px solid var(--border);
+      }
+
+      .img-preview-item img {
+        width: 100%;
+        height: 80px;
+        object-fit: cover;
+      }
+
+      .img-preview-item button {
+        position: absolute;
+        top: 4px;
+        right: 4px;
+        background: rgba(0, 0, 0, 0.6);
+        color: white;
+        border: none;
+        border-radius: 50%;
+        width: 24px;
+        height: 24px;
+        cursor: pointer;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        font-size: 14px;
+      }
+
+      /* ── RESPONSIVE ────────────────────────────────────────────── */
+      @media (max-width: 1200px) {
+        .analytics-grid {
+          grid-template-columns: 1fr;
+        }
+      }
+
       @media (max-width: 900px) {
         #sidebar {
           transform: translateX(-100%);
@@ -2402,12 +2944,14 @@
         }
         #main {
           margin-left: 0;
+          width: 100%;
+          min-width: 0;
         }
         .hamburger-btn {
           display: flex;
         }
         .stats-grid {
-          grid-template-columns: 1fr 1fr;
+          grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
         }
         .dashboard-grid {
           grid-template-columns: 1fr;
@@ -2436,10 +2980,121 @@
         .mobile-cards-container {
           display: flex;
         }
+
+        .analytics-grid {
+          grid-template-columns: 1fr;
+        }
+
+        .analytics-chart {
+          height: 200px;
+        }
+
+        .mobile-card-content {
+          grid-template-columns: 1fr;
+        }
+
+        .top-product-meta {
+          flex-direction: column;
+          gap: 4px;
+        }
+      }
+
+      /* Loading Screen */
+      .loading-screen {
+        position: fixed;
+        inset: 0;
+        background: rgba(253, 248, 243, 0.95);
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        justify-content: center;
+        z-index: 10000;
+      }
+
+      .loading-spinner {
+        width: 48px;
+        height: 48px;
+        border: 4px solid var(--border);
+        border-top: 4px solid var(--primary);
+        border-radius: 50%;
+        animation: spin 1s linear infinite;
+      }
+
+      @keyframes spin {
+        to {
+          transform: rotate(360deg);
+        }
+      }
+
+      .standout-variation {
+        margin: 4px 0;
+        display: flex;
+        align-items: center;
+        gap: 8px;
+        font-size: 12px;
+        font-weight: 600;
+        color: var(--dark);
+      }
+
+      .view-details-btn {
+        width: 100%;
+        margin-top: 16px;
+        padding: 10px;
+        border: 1.5px solid var(--border);
+        border-radius: 10px;
+        background: white;
+        color: var(--dark);
+        font-weight: 600;
+        font-size: 13px;
+        cursor: pointer;
+        transition: all 200ms;
+      }
+      .view-details-btn:hover {
+        border-color: var(--primary);
+        color: var(--primary);
+      }
+
+      #upload-progress {
+        width: 100%;
+        height: 4px;
+        background: var(--border);
+        border-radius: 2px;
+        overflow: hidden;
+        margin-bottom: 12px;
+        display: none;
+      }
+
+      #upload-progress::after {
+        content: "";
+        display: block;
+        height: 100%;
+        background: var(--primary);
+        animation: progress 2s infinite;
+      }
+
+      @keyframes progress {
+        0% {
+          width: 0;
+        }
+        50% {
+          width: 100%;
+        }
+        100% {
+          width: 100%;
+        }
       }
     </style>
   </head>
   <body>
+    <!-- Loading Screen -->
+    <div
+      class="loading-screen"
+      id="initial-loading-screen"
+      style="display: none"
+    >
+      <div class="loading-spinner"></div>
+    </div>
+
     <!-- ── LOGIN SCREEN ──────────────────────────────────────────── -->
     <div id="login-screen">
       <div class="login-card">
@@ -2518,6 +3173,18 @@
             <rect x="3" y="14" width="7" height="7" />
           </svg>
           Dashboard
+        </button>
+
+        <button
+          class="nav-item"
+          data-section="analytics"
+          onclick="navigate('analytics')"
+        >
+          <svg viewBox="0 0 24 24">
+            <line x1="12" y1="2" x2="12" y2="22"></line>
+            <path d="M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6"></path>
+          </svg>
+          Analytics
         </button>
 
         <button
@@ -2696,9 +3363,9 @@
             </div>
 
             <div class="stats-grid">
-              <div class="stat-card">
+              <div class="stat-card orange">
                 <div class="stat-label">Total Revenue</div>
-                <div class="stat-value" id="stat-revenue">KES —</div>
+                <div class="stat-value" id="stat-revenue">KES 0</div>
                 <div class="stat-icon orange">
                   <svg
                     viewBox="0 0 24 24"
@@ -2713,7 +3380,7 @@
                   </svg>
                 </div>
               </div>
-              <div class="stat-card">
+              <div class="stat-card green">
                 <div class="stat-label">Total Orders</div>
                 <div class="stat-value" id="stat-orders">—</div>
                 <div class="stat-icon green">
@@ -2723,15 +3390,16 @@
                     stroke="currentColor"
                     stroke-width="2"
                   >
+                    <circle cx="9" cy="21" r="1" />
+                    <circle cx="20" cy="21" r="1" />
                     <path
-                      d="M9 5H7a2 2 0 0 0-2 2v12a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2V7a2 2 0 0 0-2-2h-2"
+                      d="M1 1h4l2.68 13.39a2 2 0 0 0 2 1.61h9.72a2 2 0 0 0 2-1.61L23 6H6"
                     />
-                    <rect x="9" y="3" width="6" height="4" rx="2" />
                   </svg>
                 </div>
               </div>
-              <div class="stat-card">
-                <div class="stat-label">Products</div>
+              <div class="stat-card gold">
+                <div class="stat-label">Total Products</div>
                 <div class="stat-value" id="stat-products">—</div>
                 <div class="stat-icon gold">
                   <svg
@@ -2746,8 +3414,8 @@
                   </svg>
                 </div>
               </div>
-              <div class="stat-card">
-                <div class="stat-label">Customers</div>
+              <div class="stat-card blue">
+                <div class="stat-label">Total Customers</div>
                 <div class="stat-value" id="stat-customers">—</div>
                 <div class="stat-icon blue">
                   <svg
@@ -2759,6 +3427,7 @@
                     <path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2" />
                     <circle cx="9" cy="7" r="4" />
                     <path d="M23 21v-2a4 4 0 0 0-3-3.87" />
+                    <path d="M16 3.13a4 4 0 0 1 0 7.75" />
                   </svg>
                 </div>
               </div>
@@ -2822,6 +3491,43 @@
             </div>
           </div>
 
+          <!-- ── ANALYTICS ─────────────────────────────────── -->
+          <div id="section-analytics" class="section">
+            <div style="margin-bottom: 8px; font-size: 14px; color: #8a7a73">
+              Track your store's performance with detailed analytics.
+            </div>
+
+            <div class="analytics-grid">
+              <div class="analytics-card">
+                <div class="analytics-card-title">Daily Revenue Trend</div>
+                <canvas
+                  id="daily-revenue-chart"
+                  class="analytics-chart"
+                ></canvas>
+              </div>
+
+              <div class="analytics-card">
+                <div class="analytics-card-title">Daily Orders</div>
+                <canvas
+                  id="daily-orders-chart"
+                  class="analytics-chart"
+                ></canvas>
+              </div>
+            </div>
+
+            <div class="analytics-grid">
+              <div class="analytics-card">
+                <div class="analytics-card-title">Sales by Category</div>
+                <canvas id="category-chart" class="analytics-chart"></canvas>
+              </div>
+
+              <div class="top-products-card">
+                <div class="top-products-title">Top Products</div>
+                <div id="top-products-list"></div>
+              </div>
+            </div>
+          </div>
+
           <!-- ── PRODUCTS ──────────────────────────────────── -->
           <div id="section-products" class="section">
             <div class="section-toolbar">
@@ -2853,6 +3559,7 @@
                     <th>Image</th>
                     <th>Name / Category</th>
                     <th>Price</th>
+                    <th>Purchases</th>
                     <th>Stock</th>
                     <th>Status</th>
                     <th>Actions</th>
@@ -3113,237 +3820,224 @@
     </div>
     <!-- /app -->
 
-    <!-- ── PRODUCT MODAL ─────────────────────────────────────── -->
-    <div class="modal-backdrop" id="product-modal">
-      <div class="modal">
+    <!-- ── PRODUCT MODAL ────────────────────────────────────────── -->
+    <div id="product-modal" class="modal">
+      <div class="modal-content">
         <div class="modal-header">
-          <h3 id="modal-title">Add Product</h3>
+          <div class="modal-title" id="modal-title">Add Product</div>
           <button class="modal-close" onclick="closeProductModal()">✕</button>
         </div>
         <div class="modal-body">
-          <form id="product-form" onsubmit="return false;">
+          <form id="product-form">
+            <div class="form-group">
+              <label class="form-label">Product Name</label>
+              <input
+                name="prod-name"
+                class="form-input"
+                placeholder="e.g. Classic Oxford Shoes"
+              />
+            </div>
+
             <div class="form-row">
               <div class="form-group">
-                <label class="form-label">Product Name *</label
-                ><input name="prod-name" class="form-input" required />
-              </div>
-              <div class="form-group">
-                <label class="form-label">Category *</label>
-                <select name="prod-category" class="form-select">
-                  <option>Fashion</option>
-                  <option>Electronics</option>
-                  <option>Home &amp; Living</option>
-                  <option>Accessories</option>
-                  <option>Collectibles</option>
+                <label class="form-label">Category</label>
+                <select
+                  name="prod-category"
+                  class="form-select"
+                  onchange="toggleSizeOptions(this.value)"
+                >
+                  <option value="Women">Women</option>
+                  <option value="Men">Men</option>
+                  <option value="Shoes">Shoes</option>
+                  <option value="Beauty">Beauty</option>
+                  <option value="Accessories">Accessories</option>
                 </select>
               </div>
-            </div>
-            <div class="form-row">
-              <div class="form-group">
-                <label class="form-label">Price (KES) *</label
-                ><input
-                  name="prod-price"
-                  class="form-input"
-                  type="number"
-                  min="0"
-                />
-              </div>
-              <div class="form-group">
-                <label class="form-label">Original Price (KES)</label
-                ><input
-                  name="prod-original-price"
-                  class="form-input"
-                  type="number"
-                  min="0"
-                />
-              </div>
-            </div>
-            <div class="form-row">
-              <div class="form-group">
-                <label class="form-label">Stock Qty</label
-                ><input
-                  name="prod-stock"
-                  class="form-input"
-                  type="number"
-                  min="0"
-                />
-              </div>
-              <div class="form-group">
-                <label class="form-label">Seller / Source</label
-                ><input name="prod-seller" class="form-input" />
-              </div>
-            </div>
-            <div class="form-row">
               <div class="form-group">
                 <label class="form-label">Condition</label>
                 <select name="prod-condition" class="form-select">
-                  <option>Excellent</option>
-                  <option>Good</option>
-                  <option>Fair</option>
-                  <option>New</option>
+                  <option value="Good">Good</option>
+                  <option value="Excellent">Excellent</option>
+                  <option value="Like New">Like New</option>
                 </select>
               </div>
+            </div>
+
+            <div class="form-row">
               <div class="form-group">
-                <label class="form-label">Discount Label</label
-                ><input
-                  name="prod-discount"
+                <label class="form-label">Price (KES)</label>
+                <input
+                  name="prod-price"
                   class="form-input"
-                  placeholder="e.g. 20%"
+                  type="number"
+                  placeholder="0"
+                />
+              </div>
+              <div class="form-group">
+                <label class="form-label">Original Price (KES)</label>
+                <input
+                  name="prod-original-price"
+                  class="form-input"
+                  type="number"
+                  placeholder="0"
                 />
               </div>
             </div>
+
+            <div class="form-row">
+              <div class="form-group">
+                <label class="form-label">Stock Quantity</label>
+                <input
+                  name="prod-stock"
+                  class="form-input"
+                  type="number"
+                  placeholder="0"
+                />
+              </div>
+              <div class="form-group">
+                <label class="form-label">Seller Name</label>
+                <input
+                  name="prod-seller"
+                  class="form-input"
+                  placeholder="Your store name"
+                />
+              </div>
+            </div>
+
             <div class="form-group">
-              <label class="form-label">Description</label
-              ><textarea
+              <label class="form-label">Description</label>
+              <textarea
                 name="prod-description"
                 class="form-textarea"
+                placeholder="Describe the product…"
               ></textarea>
             </div>
-            <div class="form-row" style="margin-bottom: 8px">
-              <label class="form-check"
-                ><input type="checkbox" name="prod-bestseller" /> Mark as
-                Bestseller</label
-              >
-              <label class="form-check"
-                ><input type="checkbox" name="prod-on-sale" /> On Sale</label
-              >
+
+            <div class="form-group">
+              <label class="form-check">
+                <input type="checkbox" name="prod-bestseller" /> Mark as
+                Bestseller
+              </label>
             </div>
+
+            <div class="form-group">
+              <label class="form-check">
+                <input type="checkbox" name="prod-on-sale" /> On Sale
+              </label>
+            </div>
+
+            <div class="form-row">
+              <div class="form-group">
+                <label class="form-label">Discount (%)</label>
+                <input
+                  name="prod-discount"
+                  class="form-input"
+                  placeholder="e.g. 10"
+                />
+              </div>
+            </div>
+
+            <div class="form-group">
+              <label class="form-label">Colors</label>
+              <div id="color-options"></div>
+            </div>
+
+            <div class="form-group" id="size-group">
+              <label class="form-label">Sizes</label>
+              <div id="size-options"></div>
+            </div>
+
             <div class="form-group">
               <label class="form-label">Product Images</label>
               <input
                 type="file"
-                accept="image/*"
                 multiple
+                accept="image/*"
                 onchange="handleImageUpload(event)"
-                style="font-size: 13px"
               />
-              <div id="upload-progress">Uploading…</div>
+              <div id="upload-progress"></div>
               <div id="image-preview-list"></div>
             </div>
+
+            <button
+              type="button"
+              class="btn-primary"
+              id="save-product-btn"
+              onclick="saveProduct()"
+            >
+              <span class="btn-text">Save Product</span>
+              <div class="btn-spinner"></div>
+            </button>
           </form>
-        </div>
-        <div class="modal-footer">
-          <button class="btn-ghost" onclick="closeProductModal()">
-            Cancel
-          </button>
-          <button
-            class="btn-primary"
-            id="save-product-btn"
-            onclick="saveProduct()"
-          >
-            <div class="btn-spinner"></div>
-            <span class="btn-text">Save Product</span>
-          </button>
         </div>
       </div>
     </div>
 
-    <!-- ── OFFER MODAL ─────────────────────────────────────── -->
-    <div class="modal-backdrop" id="offer-modal">
-      <div class="modal">
+    <!-- ── OFFER MODAL ────────────────────────────────────────── -->
+    <div id="offer-modal" class="modal">
+      <div class="modal-content">
         <div class="modal-header">
-          <h3>Manage Limited Offer</h3>
+          <div class="modal-title">Limited Offer</div>
           <button class="modal-close" onclick="closeOfferModal()">✕</button>
         </div>
         <div class="modal-body">
-          <form id="offer-form" onsubmit="return false;">
-            <div class="form-row">
-              <div class="form-group">
-                <label class="form-label">Product Name *</label
-                ><input name="offer-name" class="form-input" required />
-              </div>
-              <div class="form-group">
-                <label class="form-label">Category</label>
-                <select name="offer-category" class="form-select">
-                  <option>Fashion</option>
-                  <option>Electronics</option>
-                  <option>Home & Living</option>
-                  <option>Accessories</option>
-                </select>
-              </div>
+          <form id="offer-form">
+            <div class="form-group">
+              <label class="form-label">Product Name</label>
+              <input name="offer-name" class="form-input" />
             </div>
             <div class="form-row">
               <div class="form-group">
-                <label class="form-label">Offer Price *</label
-                ><input name="offer-price" class="form-input" type="number" />
-              </div>
-              <div class="form-group">
-                <label class="form-label">Original Price</label
-                ><input
-                  name="offer-original-price"
+                <label class="form-label">Price (KES)</label>
+                <input
+                  name="offer-price"
                   class="form-input"
                   type="number"
+                  placeholder="0"
+                />
+              </div>
+              <div class="form-group">
+                <label class="form-label">Discount (%)</label>
+                <input
+                  name="offer-discount"
+                  class="form-input"
+                  type="number"
+                  placeholder="0"
                 />
               </div>
             </div>
-            <div class="form-row">
-              <div class="form-group">
-                <label class="form-label">Discount Label (e.g. 50%)</label
-                ><input name="offer-discount" class="form-input" />
-              </div>
-              <div class="form-group">
-                <label class="form-label">Seller</label
-                ><input name="offer-seller" class="form-input" />
-              </div>
-            </div>
             <div class="form-group">
-              <label class="form-label">Description</label
-              ><textarea
-                name="offer-description"
-                class="form-textarea"
-              ></textarea>
+              <label class="form-label">Image URL</label>
+              <input name="offer-image" class="form-input" />
             </div>
-            <div class="form-group">
-              <label class="form-label">Images</label>
-              <input
-                type="file"
-                accept="image/*"
-                multiple
-                onchange="handleOfferImageUpload(event)"
-              />
-              <div id="offer-image-preview-list"></div>
-            </div>
+            <button type="button" class="btn-primary" onclick="saveOffer()">
+              Save Offer
+            </button>
           </form>
-        </div>
-        <div class="modal-footer">
-          <button class="btn-ghost" onclick="closeOfferModal()">Cancel</button>
-          <button class="btn-primary" id="save-offer-btn" onclick="saveOffer()">
-            <div class="btn-spinner"></div>
-            <span class="btn-text">Save Offer</span>
-          </button>
         </div>
       </div>
     </div>
 
-    <!-- ── ORDER DETAIL MODAL ────────────────────────────────── -->
-    <div class="modal-backdrop" id="order-modal">
-      <div class="modal">
+    <!-- ── ORDER MODAL ────────────────────────────────────────── -->
+    <div id="order-modal" class="modal">
+      <div class="modal-content">
         <div class="modal-header">
-          <h3>Order Details</h3>
+          <div class="modal-title">Order Details</div>
           <button class="modal-close" onclick="closeOrderModal()">✕</button>
         </div>
         <div class="modal-body" id="order-modal-body"></div>
-        <div class="modal-footer">
-          <button class="btn-primary" onclick="closeOrderModal()">Close</button>
-        </div>
       </div>
     </div>
 
-    <!-- ── MESSAGE MODAL ─────────────────────────────────────── -->
-    <div class="modal-backdrop" id="msg-modal">
-      <div class="modal">
+    <!-- ── MESSAGE MODAL ────────────────────────────────────────── -->
+    <div id="msg-modal" class="modal">
+      <div class="modal-content">
         <div class="modal-header">
-          <h3>Message</h3>
+          <div class="modal-title">Message</div>
           <button class="modal-close" onclick="closeMsgModal()">✕</button>
         </div>
         <div class="modal-body" id="msg-modal-body"></div>
-        <div class="modal-footer">
-          <button class="btn-primary" onclick="closeMsgModal()">Close</button>
-        </div>
       </div>
     </div>
-
-    <!-- TOAST -->
-    <div class="toast" id="toast"></div>
   </body>
 </html>

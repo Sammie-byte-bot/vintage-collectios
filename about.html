@@ -1,0 +1,1364 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>About Us - Vintage Collections</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link
+      href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,400;9..144,500;9..144,600;9..144,700&family=Inter:wght@400;500;600;700&display=swap"
+      rel="stylesheet"
+    />
+    <style>
+      :root {
+        --cream: #f6f1e7;
+        --cream-deep: #efe7d8;
+        --ink: #2b221a;
+        --ink-soft: #5a4d3f;
+        --terracotta: #c1622d;
+        --terracotta-deep: #a24f22;
+        --sage: #6e7b5e;
+        --gold: #d9a648;
+        --line: #e1d6c2;
+        --white: #fffdf9;
+
+        /* Nav specific variables */
+        --primary: #d5572a;
+        --primary-dark: #b8451f;
+        --accent: #2f6f4f;
+        --dark: #2c2624;
+        --light: #fdf8f3;
+        --border: #f0e2d3;
+        --muted: #8a7d74;
+      }
+
+      * {
+        box-sizing: border-box;
+        margin: 0;
+        padding: 0;
+      }
+
+      body {
+        font-family: "Inter", sans-serif;
+        background: var(--cream);
+        color: var(--ink);
+        line-height: 1.6;
+        -webkit-font-smoothing: antialiased;
+      }
+
+      h1,
+      h2,
+      h3,
+      h4 {
+        font-family: "Fraunces", serif;
+        font-weight: 600;
+        line-height: 1.15;
+        letter-spacing: -0.01em;
+      }
+
+      a {
+        color: inherit;
+        text-decoration: none;
+      }
+      img {
+        display: block;
+        max-width: 100%;
+      }
+
+      /* ============ NAV ============ */
+      .nav-bar {
+        background: white;
+        border-bottom: 1px solid var(--border);
+        padding: 0 24px;
+        position: sticky;
+        top: 0;
+        z-index: 200;
+        height: 64px;
+        display: flex;
+        align-items: center;
+      }
+      .nav-content {
+        max-width: 1400px;
+        margin: 0 auto;
+        width: 100%;
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        gap: 16px;
+      }
+      .logo {
+        font-family: "Fraunces", serif;
+        font-size: 20px;
+        font-weight: 600;
+        color: var(--dark);
+        display: flex;
+        align-items: center;
+        gap: 8px;
+        text-decoration: none;
+        flex-shrink: 0;
+      }
+      .logo svg {
+        color: var(--primary);
+      }
+      .search-bar {
+        display: flex;
+        gap: 8px;
+        flex: 1;
+        max-width: 480px;
+      }
+      .search-input {
+        flex: 1;
+        padding: 9px 16px;
+        border: 1.5px solid var(--border);
+        border-radius: 999px;
+        font-size: 14px;
+        outline: none;
+        transition: border-color 200ms;
+        background: white;
+        color: var(--dark);
+        min-width: 0;
+      }
+      .search-input::placeholder {
+        color: #b8a99c;
+      }
+      .search-input:focus {
+        border-color: var(--primary);
+      }
+      .search-btn {
+        background-color: var(--primary);
+        color: white;
+        border: none;
+        border-radius: 999px;
+        width: 40px;
+        height: 40px;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        cursor: pointer;
+        flex-shrink: 0;
+        transition: background-color 200ms;
+      }
+      .search-btn:hover {
+        background-color: var(--primary-dark);
+      }
+      .nav-links {
+        display: flex;
+        gap: 20px;
+        align-items: center;
+      }
+      .nav-link {
+        color: var(--dark);
+        text-decoration: none;
+        font-size: 14px;
+        font-weight: 500;
+        transition: color 200ms;
+        white-space: nowrap;
+      }
+      .nav-link:hover {
+        color: var(--primary);
+      }
+      .nav-link.active {
+        color: var(--primary);
+        border-bottom: 2px solid var(--primary);
+        padding-bottom: 2px;
+      }
+      .nav-icons {
+        display: flex;
+        gap: 4px;
+        align-items: center;
+      }
+      .icon-btn {
+        background: none;
+        border: none;
+        cursor: pointer;
+        color: var(--dark);
+        transition: color 200ms;
+        padding: 8px;
+        position: relative;
+        border-radius: 8px;
+      }
+      .icon-btn:hover {
+        color: var(--primary);
+        background: #fdf3ee;
+      }
+      .cart-badge {
+        position: absolute;
+        top: 2px;
+        right: 2px;
+        background: var(--primary);
+        color: white;
+        border-radius: 50%;
+        width: 17px;
+        height: 17px;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        font-size: 10px;
+        font-weight: 700;
+      }
+      .hamburger-btn {
+        display: none;
+        background: none;
+        border: none;
+        cursor: pointer;
+        color: var(--dark);
+        padding: 8px;
+        border-radius: 8px;
+        flex-shrink: 0;
+      }
+      .hamburger-btn:hover {
+        background: #fdf3ee;
+      }
+
+      .desktop-wishlist {
+        display: flex;
+      }
+
+      /* ============ MOBILE NAV DRAWER ============ */
+      .mobile-nav-overlay {
+        display: none;
+        position: fixed;
+        inset: 0;
+        background: rgba(44, 38, 36, 0.5);
+        z-index: 300;
+      }
+      .mobile-nav-drawer {
+        position: fixed;
+        top: 0;
+        right: 0;
+        width: 280px;
+        height: 100vh;
+        background: white;
+        z-index: 400;
+        padding: 24px;
+        transform: translateX(100%);
+        transition: transform 300ms ease;
+        overflow-y: auto;
+      }
+      .mobile-nav-drawer.open {
+        transform: translateX(0);
+      }
+      .mobile-nav-overlay.open {
+        display: block;
+      }
+      .drawer-close {
+        display: flex;
+        justify-content: flex-end;
+        margin-bottom: 24px;
+      }
+      .close-btn {
+        background: none;
+        border: none;
+        cursor: pointer;
+        color: var(--dark);
+        padding: 8px;
+        border-radius: 8px;
+      }
+      .close-btn:hover {
+        background: #fdf3ee;
+        color: var(--primary);
+      }
+      .drawer-links {
+        display: flex;
+        flex-direction: column;
+        gap: 4px;
+        margin-bottom: 24px;
+      }
+      .drawer-link {
+        display: block;
+        padding: 12px 16px;
+        color: var(--dark);
+        text-decoration: none;
+        font-size: 15px;
+        font-weight: 500;
+        border-radius: 10px;
+        transition: all 200ms;
+      }
+      .drawer-link:hover,
+      .drawer-link.active {
+        background: #fdf3ee;
+        color: var(--primary);
+      }
+      .drawer-divider {
+        height: 1px;
+        background: var(--border);
+        margin: 16px 0;
+      }
+      .drawer-action {
+        display: flex;
+        align-items: center;
+        gap: 10px;
+        padding: 12px 16px;
+        color: var(--dark);
+        font-size: 15px;
+        font-weight: 500;
+        border-radius: 10px;
+        cursor: pointer;
+        transition: all 200ms;
+        background: none;
+        border: none;
+        width: 100%;
+        text-align: left;
+      }
+      .drawer-action:hover {
+        background: #fdf3ee;
+        color: var(--primary);
+      }
+
+      /* ============ MOBILE SEARCH ============ */
+      .mobile-search-bar {
+        display: none;
+        padding: 10px 16px;
+        background: white;
+        border-bottom: 1px solid var(--border);
+      }
+      .mobile-search-inner {
+        display: flex;
+        gap: 8px;
+      }
+
+      @media (max-width: 860px) {
+        .desktop-wishlist {
+          display: none !important;
+        }
+        .nav-links,
+        .search-bar {
+          display: none !important;
+        }
+        .hamburger-btn {
+          display: flex !important;
+        }
+        .mobile-search-bar {
+          display: block !important;
+        }
+      }
+      /* ===== HERO ===== */
+      .hero {
+        max-width: 1200px;
+        margin: 0 auto;
+        padding: 72px 32px 48px;
+        display: grid;
+        grid-template-columns: 1.1fr 1fr;
+        gap: 56px;
+        align-items: center;
+      }
+      .hero-copy .eyebrow {
+        display: inline-flex;
+        align-items: center;
+        gap: 8px;
+        font-size: 0.78rem;
+        font-weight: 700;
+        letter-spacing: 0.18em;
+        text-transform: uppercase;
+        color: var(--terracotta);
+        margin-bottom: 18px;
+      }
+      .hero-copy .eyebrow::before {
+        content: "";
+        width: 28px;
+        height: 1px;
+        background: var(--terracotta);
+      }
+      .hero-copy h1 {
+        font-size: clamp(2.4rem, 5vw, 3.8rem);
+        margin-bottom: 22px;
+      }
+      .hero-copy h1 em {
+        font-style: italic;
+        color: var(--terracotta);
+      }
+      .hero-copy p {
+        font-size: 1.08rem;
+        color: var(--ink-soft);
+        max-width: 480px;
+        margin-bottom: 28px;
+      }
+      .btn-primary {
+        display: inline-block;
+        background: var(--ink);
+        color: var(--cream);
+        padding: 14px 30px;
+        border-radius: 999px;
+        font-weight: 600;
+        font-size: 0.95rem;
+        transition:
+          background 0.2s ease,
+          transform 0.2s ease;
+      }
+      .btn-primary:hover {
+        background: var(--terracotta-deep);
+        transform: translateY(-1px);
+      }
+
+      .hero-art {
+        position: relative;
+        border-radius: 18px;
+        overflow: hidden;
+        aspect-ratio: 4/5;
+        background: var(--cream-deep);
+      }
+      .hero-art img {
+        width: 100%;
+        height: 100%;
+        object-fit: cover;
+      }
+      .hero-stamp {
+        position: absolute;
+        bottom: 18px;
+        right: 18px;
+        width: 108px;
+        height: 108px;
+        border-radius: 50%;
+        background: var(--cream);
+        border: 2px dashed var(--terracotta);
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        text-align: center;
+        font-family: "Fraunces", serif;
+        font-size: 0.7rem;
+        font-weight: 700;
+        letter-spacing: 0.08em;
+        text-transform: uppercase;
+        color: var(--ink);
+        line-height: 1.3;
+        box-shadow: 0 8px 24px rgba(43, 34, 26, 0.18);
+        transform: rotate(-8deg);
+      }
+
+      @media (max-width: 860px) {
+        .hero {
+          grid-template-columns: 1fr;
+          padding-top: 40px;
+        }
+        .hero-art {
+          order: -1;
+          aspect-ratio: 16/10;
+        }
+      }
+
+      /* ===== SECTION SHELL ===== */
+      section {
+        max-width: 1200px;
+        margin: 0 auto;
+        padding: 64px 32px;
+      }
+      .section-head {
+        max-width: 620px;
+        margin-bottom: 44px;
+      }
+      .section-head .eyebrow {
+        display: inline-flex;
+        align-items: center;
+        gap: 8px;
+        font-size: 0.78rem;
+        font-weight: 700;
+        letter-spacing: 0.18em;
+        text-transform: uppercase;
+        color: var(--sage);
+        margin-bottom: 14px;
+      }
+      .section-head .eyebrow::before {
+        content: "";
+        width: 28px;
+        height: 1px;
+        background: var(--sage);
+      }
+      .section-head h2 {
+        font-size: clamp(1.8rem, 3.4vw, 2.6rem);
+        margin-bottom: 14px;
+      }
+      .section-head p {
+        color: var(--ink-soft);
+        font-size: 1.02rem;
+      }
+
+      /* ===== STORY (image + text) ===== */
+      .story {
+        display: grid;
+        grid-template-columns: 1fr 1.05fr;
+        gap: 64px;
+        align-items: center;
+      }
+      .story-art {
+        border-radius: 18px;
+        overflow: hidden;
+        aspect-ratio: 5/6;
+        background: var(--cream-deep);
+      }
+      .story-art img {
+        width: 100%;
+        height: 100%;
+        object-fit: cover;
+      }
+      .story-text h2 {
+        font-size: clamp(1.8rem, 3.4vw, 2.6rem);
+        margin-bottom: 20px;
+      }
+      .story-text p {
+        color: var(--ink-soft);
+        margin-bottom: 18px;
+        font-size: 1.02rem;
+      }
+      .story-text p:last-of-type {
+        margin-bottom: 0;
+      }
+      .story-text .signature {
+        margin-top: 28px;
+        font-family: "Fraunces", serif;
+        font-style: italic;
+        font-size: 1.1rem;
+        color: var(--ink);
+      }
+
+      @media (max-width: 860px) {
+        .story {
+          grid-template-columns: 1fr;
+          gap: 32px;
+        }
+        .story-art {
+          order: -1;
+        }
+      }
+
+      /* ===== VALUES ===== */
+      .values-grid {
+        display: grid;
+        grid-template-columns: repeat(3, 1fr);
+        gap: 28px;
+      }
+      .value-card {
+        background: var(--white);
+        border: 1px solid var(--line);
+        border-radius: 16px;
+        padding: 32px 28px;
+      }
+      .value-card .mark {
+        width: 46px;
+        height: 46px;
+        border-radius: 50%;
+        background: var(--cream-deep);
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        margin-bottom: 18px;
+        font-family: "Fraunces", serif;
+        font-weight: 700;
+        font-size: 1.1rem;
+        color: var(--terracotta);
+      }
+      .value-card h3 {
+        font-size: 1.2rem;
+        margin-bottom: 10px;
+      }
+      .value-card p {
+        color: var(--ink-soft);
+        font-size: 0.96rem;
+      }
+
+      @media (max-width: 860px) {
+        .values-grid {
+          grid-template-columns: 1fr;
+          gap: 20px;
+        }
+      }
+
+      /* ===== SOURCING BANNER ===== */
+      .sourcing {
+        background: var(--ink);
+        color: var(--cream);
+        border-radius: 22px;
+        padding: 64px 56px;
+        display: grid;
+        grid-template-columns: 1fr 1fr;
+        gap: 56px;
+        align-items: center;
+        margin: 64px auto;
+      }
+      .sourcing .eyebrow {
+        display: inline-flex;
+        align-items: center;
+        gap: 8px;
+        font-size: 0.78rem;
+        font-weight: 700;
+        letter-spacing: 0.18em;
+        text-transform: uppercase;
+        color: var(--gold);
+        margin-bottom: 16px;
+      }
+      .sourcing .eyebrow::before {
+        content: "";
+        width: 28px;
+        height: 1px;
+        background: var(--gold);
+      }
+      .sourcing h2 {
+        font-size: clamp(1.8rem, 3.4vw, 2.5rem);
+        margin-bottom: 18px;
+      }
+      .sourcing p {
+        color: #d8cfc0;
+        font-size: 1.02rem;
+        margin-bottom: 14px;
+      }
+      .sourcing-stats {
+        display: flex;
+        gap: 36px;
+        margin-top: 28px;
+        flex-wrap: wrap;
+      }
+      .sourcing-stats div strong {
+        display: block;
+        font-family: "Fraunces", serif;
+        font-size: 2rem;
+        color: var(--gold);
+      }
+      .sourcing-stats div span {
+        font-size: 0.85rem;
+        color: #bdb3a2;
+      }
+      .sourcing-art {
+        border-radius: 16px;
+        overflow: hidden;
+        aspect-ratio: 4/3;
+      }
+      .sourcing-art img {
+        width: 100%;
+        height: 100%;
+        object-fit: cover;
+      }
+
+      @media (max-width: 860px) {
+        .sourcing {
+          grid-template-columns: 1fr;
+          padding: 40px 28px;
+          gap: 32px;
+        }
+        .sourcing-art {
+          order: -1;
+        }
+      }
+
+      /* ===== TEAM ===== */
+      .team-grid {
+        display: grid;
+        grid-template-columns: repeat(4, 1fr);
+        gap: 28px;
+      }
+      .team-card .photo {
+        border-radius: 14px;
+        overflow: hidden;
+        aspect-ratio: 1/1;
+        margin-bottom: 16px;
+        background: var(--cream-deep);
+      }
+      .team-card .photo img {
+        width: 100%;
+        height: 100%;
+        object-fit: cover;
+      }
+      .team-card h4 {
+        font-size: 1.05rem;
+        margin-bottom: 2px;
+      }
+      .team-card span {
+        font-size: 0.85rem;
+        color: var(--terracotta);
+        font-weight: 600;
+      }
+      .team-card p {
+        font-size: 0.9rem;
+        color: var(--ink-soft);
+        margin-top: 8px;
+      }
+
+      @media (max-width: 980px) {
+        .team-grid {
+          grid-template-columns: repeat(2, 1fr);
+          gap: 24px;
+        }
+      }
+      @media (max-width: 560px) {
+        .team-grid {
+          grid-template-columns: 1fr;
+        }
+      }
+
+      /* ===== CTA ===== */
+      .cta {
+        text-align: center;
+        background: var(--cream-deep);
+        border-radius: 22px;
+        padding: 64px 32px;
+        margin: 64px auto;
+      }
+      .cta h2 {
+        font-size: clamp(1.8rem, 3.4vw, 2.6rem);
+        margin-bottom: 14px;
+      }
+      .cta p {
+        color: var(--ink-soft);
+        max-width: 480px;
+        margin: 0 auto 28px;
+      }
+
+      /* ===== FOOTER ===== */
+      footer {
+        background: var(--ink);
+        color: #cec4b3;
+        padding: 64px 32px 28px;
+      }
+      .footer-inner {
+        max-width: 1200px;
+        margin: 0 auto;
+        display: grid;
+        grid-template-columns: 1.4fr 1fr 1fr 1fr;
+        gap: 40px;
+        padding-bottom: 40px;
+        border-bottom: 1px solid #4a3f32;
+      }
+      .footer-inner h4 {
+        font-family: "Fraunces", serif;
+        color: var(--cream);
+        font-size: 1.3rem;
+        margin-bottom: 12px;
+      }
+      .footer-brand p {
+        font-size: 0.92rem;
+        max-width: 280px;
+        color: #b7ac9a;
+      }
+      .footer-col h5 {
+        color: var(--cream);
+        font-size: 0.85rem;
+        font-weight: 700;
+        letter-spacing: 0.12em;
+        text-transform: uppercase;
+        margin-bottom: 16px;
+      }
+      .footer-col ul {
+        list-style: none;
+      }
+      .footer-col li {
+        margin-bottom: 10px;
+        font-size: 0.92rem;
+      }
+      .footer-col a:hover {
+        color: var(--gold);
+      }
+      .footer-bottom {
+        max-width: 1200px;
+        margin: 0 auto;
+        padding-top: 24px;
+        font-size: 0.85rem;
+        color: #9a8e7c;
+        text-align: center;
+      }
+
+      @media (max-width: 860px) {
+        .footer-inner {
+          grid-template-columns: 1fr 1fr;
+          gap: 32px;
+        }
+        .footer-brand {
+          grid-column: 1/-1;
+        }
+      }
+    </style>
+  </head>
+  <body>
+    <!-- ============ NAV BAR ============ -->
+    <nav class="nav-bar">
+      <div class="nav-content">
+        <a href="index.html" class="logo">
+          <svg
+            viewBox="0 0 24 24"
+            fill="none"
+            stroke="currentColor"
+            stroke-width="2"
+            width="22"
+            height="22"
+          >
+            <path d="M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"></path>
+            <polyline points="9 22 9 12 15 12 15 22"></polyline>
+          </svg>
+          <span>Vintage Collections</span>
+        </a>
+
+        <!-- Desktop Search -->
+        <div class="search-bar">
+          <input
+            type="text"
+            class="search-input"
+            id="search-input"
+            placeholder="Search vintage items..."
+          />
+          <button class="search-btn" onclick="performSearch()">
+            <svg
+              viewBox="0 0 24 24"
+              fill="none"
+              stroke="currentColor"
+              stroke-width="2"
+              width="16"
+              height="16"
+            >
+              <circle cx="11" cy="11" r="8"></circle>
+              <path d="m21 21-4.35-4.35"></path>
+            </svg>
+          </button>
+        </div>
+
+        <!-- Desktop Nav Links -->
+        <div class="nav-links">
+          <a href="shop.html" class="nav-link">Shop</a>
+          <a href="about.html" class="nav-link active">About</a>
+          <a href="contact.html" class="nav-link">Contact</a>
+        </div>
+
+        <!-- Icons -->
+        <div class="nav-icons">
+          <button class="icon-btn" onclick="goToAccount()" title="Account">
+            <svg
+              viewBox="0 0 24 24"
+              fill="none"
+              stroke="currentColor"
+              stroke-width="2"
+              width="20"
+              height="20"
+            >
+              <path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"></path>
+              <circle cx="12" cy="7" r="4"></circle>
+            </svg>
+          </button>
+          <button
+            class="icon-btn desktop-wishlist"
+            onclick="toggleWishlistPanel()"
+            title="Wishlist"
+          >
+            <svg
+              viewBox="0 0 24 24"
+              fill="none"
+              stroke="currentColor"
+              stroke-width="2"
+              width="20"
+              height="20"
+            >
+              <path
+                d="M20.84 4.61a5.5 5.5 0 0 0-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 0 0-7.78 7.78l1.06 1.06L12 21.23l7.78-7.78 1.06-1.06a5.5 5.5 0 0 0 0-7.78z"
+              ></path>
+            </svg>
+            <span
+              class="cart-badge"
+              id="wishlist-count"
+              style="background: var(--gold)"
+              >0</span
+            >
+          </button>
+          <button class="icon-btn" onclick="goToCart()" title="Cart">
+            <svg
+              viewBox="0 0 24 24"
+              fill="none"
+              stroke="currentColor"
+              stroke-width="2"
+              width="20"
+              height="20"
+            >
+              <circle cx="9" cy="21" r="1"></circle>
+              <circle cx="20" cy="21" r="1"></circle>
+              <path
+                d="M1 1h4l2.68 13.39a2 2 0 0 0 2 1.61h9.72a2 2 0 0 0 2-1.61L23 6H6"
+              ></path>
+            </svg>
+            <span class="cart-badge" id="cart-count">0</span>
+          </button>
+          <!-- Hamburger -->
+          <button class="hamburger-btn" onclick="openMobileNav()" title="Menu">
+            <svg
+              viewBox="0 0 24 24"
+              fill="none"
+              stroke="currentColor"
+              stroke-width="2"
+              width="22"
+              height="22"
+            >
+              <line x1="3" y1="6" x2="21" y2="6"></line>
+              <line x1="3" y1="12" x2="21" y2="12"></line>
+              <line x1="3" y1="18" x2="21" y2="18"></line>
+            </svg>
+          </button>
+        </div>
+      </div>
+    </nav>
+
+    <!-- Mobile Search Bar -->
+    <div class="mobile-search-bar">
+      <div class="mobile-search-inner">
+        <input
+          type="text"
+          class="search-input"
+          id="mobile-search-input"
+          placeholder="Search vintage items..."
+          style="flex: 1"
+        />
+        <button class="search-btn" onclick="performMobileSearch()">
+          <svg
+            viewBox="0 0 24 24"
+            fill="none"
+            stroke="currentColor"
+            stroke-width="2"
+            width="16"
+            height="16"
+          >
+            <circle cx="11" cy="11" r="8"></circle>
+            <path d="m21 21-4.35-4.35"></path>
+          </svg>
+        </button>
+      </div>
+    </div>
+
+    <!-- Mobile Nav Drawer -->
+    <div
+      class="mobile-nav-overlay"
+      id="mobile-nav-overlay"
+      onclick="closeMobileNav()"
+    ></div>
+    <div class="mobile-nav-drawer" id="mobile-nav-drawer">
+      <div class="drawer-close">
+        <button class="close-btn" onclick="closeMobileNav()">
+          <svg
+            viewBox="0 0 24 24"
+            fill="none"
+            stroke="currentColor"
+            stroke-width="2"
+            width="22"
+            height="22"
+          >
+            <line x1="18" y1="6" x2="6" y2="18"></line>
+            <line x1="6" y1="6" x2="18" y2="18"></line>
+          </svg>
+        </button>
+      </div>
+      <div class="drawer-links">
+        <a href="index.html" class="drawer-link">Home</a>
+        <a href="shop.html" class="drawer-link">Shop</a>
+        <a href="about.html" class="drawer-link active">About</a>
+        <a href="contact.html" class="drawer-link">Contact</a>
+      </div>
+      <div class="drawer-divider"></div>
+      <button
+        class="drawer-action"
+        onclick="
+          goToAccount();
+          closeMobileNav();
+        "
+      >
+        <svg
+          viewBox="0 0 24 24"
+          fill="none"
+          stroke="currentColor"
+          stroke-width="2"
+          width="18"
+          height="18"
+        >
+          <path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"></path>
+          <circle cx="12" cy="7" r="4"></circle>
+        </svg>
+        My Account
+      </button>
+      <button
+        class="drawer-action"
+        onclick="
+          toggleWishlistPanel();
+          closeMobileNav();
+        "
+      >
+        <svg
+          viewBox="0 0 24 24"
+          fill="none"
+          stroke="currentColor"
+          stroke-width="2"
+          width="18"
+          height="18"
+        >
+          <path
+            d="M20.84 4.61a5.5 5.5 0 0 0-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 0 0-7.78 7.78l1.06 1.06L12 21.23l7.78-7.78 1.06-1.06a5.5 5.5 0 0 0 0-7.78z"
+          ></path>
+        </svg>
+        Wishlist
+      </button>
+      <button
+        class="drawer-action"
+        onclick="
+          goToCart();
+          closeMobileNav();
+        "
+      >
+        <svg
+          viewBox="0 0 24 24"
+          fill="none"
+          stroke="currentColor"
+          stroke-width="2"
+          width="18"
+          height="18"
+        >
+          <circle cx="9" cy="21" r="1"></circle>
+          <circle cx="20" cy="21" r="1"></circle>
+          <path
+            d="M1 1h4l2.68 13.39a2 2 0 0 0 2 1.61h9.72a2 2 0 0 0 2-1.61L23 6H6"
+          ></path>
+        </svg>
+        Cart
+      </button>
+      <div class="drawer-divider"></div>
+      <button
+        class="drawer-action"
+        onclick="
+          openAllFilters();
+          closeMobileNav();
+        "
+      >
+        <svg
+          viewBox="0 0 24 24"
+          fill="none"
+          stroke="currentColor"
+          stroke-width="2"
+          width="18"
+          height="18"
+        >
+          <line x1="4" y1="6" x2="20" y2="6"></line>
+          <line x1="8" y1="12" x2="20" y2="12"></line>
+          <line x1="4" y1="18" x2="20" y2="18"></line>
+        </svg>
+        Filters
+      </button>
+    </div>
+
+    <!-- HERO -->
+    <section class="hero">
+      <div class="hero-copy">
+        <div class="eyebrow">About Vintage Collections</div>
+        <h1>Curated with care, <em>sourced from Kenya</em></h1>
+        <p>
+          We hunt through markets, mitumba bales, and forgotten wardrobes across
+          Kenya to find pieces with real character — then bring them to you,
+          cleaned, checked, and ready for a second life.
+        </p>
+        <a href="shop.html" class="btn-primary">Explore the Edit</a>
+      </div>
+      <div class="hero-art">
+        <img
+          src="https://www.pinterest.com/pin/611997036917099411/"
+          alt="Rack of curated vintage clothing"
+        />
+        <div class="hero-stamp">Authenticated<br />Vintage<br />Est. 2023</div>
+      </div>
+    </section>
+
+    <!-- STORY -->
+    <section class="story">
+      <div class="story-art">
+        <img
+          src="https://images.unsplash.com/photo-1567401893414-76b7b1e5a7a5?q=80&w=900&auto=format&fit=crop"
+          alt="Folded vintage wool sweaters and leather jacket"
+        />
+      </div>
+      <div class="story-text">
+        <div
+          class="eyebrow"
+          style="
+            display: inline-flex;
+            align-items: center;
+            gap: 8px;
+            font-size: 0.78rem;
+            font-weight: 700;
+            letter-spacing: 0.18em;
+            text-transform: uppercase;
+            color: var(--sage);
+            margin-bottom: 14px;
+          "
+        >
+          Our Story
+        </div>
+        <h2>From Nairobi's markets to your wardrobe</h2>
+        <p>
+          Vintage Collections started as a weekend habit — digging through
+          Gikomba and Toi Market for the one jacket, the one mug, the one chair
+          that still had decades of life left in it. What began as a personal
+          hobby quickly turned into something bigger when friends kept asking,
+          "where did you find that?"
+        </p>
+        <p>
+          Today, our small team of buyers and restorers travels across Kenya
+          every week, sourcing fashion, electronics, and home pieces that were
+          built to last but somehow got left behind. Each item is inspected,
+          cleaned, and — where needed — repaired before it earns a spot in our
+          shop.
+        </p>
+        <p>
+          We believe the best things aren't always new. They're well-made,
+          well-loved, and ready for whoever finds them next.
+        </p>
+        <div class="signature">— The Vintage Collections Team</div>
+      </div>
+    </section>
+
+    <!-- VALUES -->
+    <section>
+      <div class="section-head">
+        <div class="eyebrow">What We Stand For</div>
+        <h2>Three things that don't change</h2>
+        <p>
+          Trends move fast. Our standards don't. Every piece that reaches you
+          has been through the same care, no matter the price tag.
+        </p>
+      </div>
+      <div class="values-grid">
+        <div class="value-card">
+          <div class="mark">✓</div>
+          <h3>Hand-checked quality</h3>
+          <p>
+            Every item is inspected for condition, cleaned, and tested (where
+            applicable) before it's listed. If it's not good enough for our own
+            closets, it doesn't make the cut.
+          </p>
+        </div>
+        <div class="value-card">
+          <div class="mark">♻</div>
+          <h3>Slower, kinder shopping</h3>
+          <p>
+            Buying pre-loved means fewer things end up in landfill and fewer new
+            resources are used. Good style doesn't have to come at the planet's
+            expense.
+          </p>
+        </div>
+        <div class="value-card">
+          <div class="mark">🇰🇪</div>
+          <h3>Proudly Kenyan-sourced</h3>
+          <p>
+            From the markets of Nairobi to towns across the country, everything
+            we sell is found, sorted, and shipped right here in Kenya —
+            supporting local traders along the way.
+          </p>
+        </div>
+      </div>
+    </section>
+
+    <!-- SOURCING -->
+    <section>
+      <div class="sourcing">
+        <div>
+          <div class="eyebrow">Where It Comes From</div>
+          <h2>Sourced from the heart of Kenya's markets</h2>
+          <p>
+            Our buying team spends most weeks on the road — through Gikomba,
+            Toi, and smaller town markets — looking for pieces with good bones:
+            solid stitching, real leather, hardwood, and brands worth a second
+            look.
+          </p>
+          <p>
+            Nothing is mass-produced or drop-shipped. If it's in our shop,
+            someone on our team held it, checked it, and decided it was worth
+            bringing home.
+          </p>
+          <div class="sourcing-stats">
+            <div>
+              <strong>1,200+</strong>
+              <span>items rehomed</span>
+            </div>
+            <div>
+              <strong>15</strong>
+              <span>market routes covered</span>
+            </div>
+            <div>
+              <strong>3</strong>
+              <span>years sourcing</span>
+            </div>
+          </div>
+        </div>
+        <div class="sourcing-art">
+          <img
+            src="https://images.unsplash.com/photo-1601084881623-cdf9a8ea242c?q=80&w=900&auto=format&fit=crop"
+            alt="Vintage market stall with clothing and goods"
+          />
+        </div>
+      </div>
+    </section>
+
+    <!-- TEAM -->
+    <section>
+      <div class="section-head">
+        <div class="eyebrow">Meet The Team</div>
+        <h2>The people behind the picks</h2>
+        <p>
+          A small crew of buyers, cleaners, and pricing nerds who genuinely love
+          this stuff.
+        </p>
+      </div>
+      <div class="team-grid">
+        <div class="team-card">
+          <div class="photo">
+            <img
+              src="https://images.unsplash.com/photo-1573496359142-b8d87734a5a2?q=80&w=400&auto=format&fit=crop"
+              alt="Portrait of team member"
+            />
+          </div>
+          <h4>Achieng Otieno</h4>
+          <span>Founder &amp; Chief Buyer</span>
+          <p>
+            Started it all with one suitcase of jackets and a market stall in
+            Gikomba.
+          </p>
+        </div>
+        <div class="team-card">
+          <div class="photo">
+            <img
+              src="https://images.unsplash.com/photo-1607746882042-944635dfe10e?q=80&w=400&auto=format&fit=crop"
+              alt="Portrait of team member"
+            />
+          </div>
+          <h4>Brian Mwangi</h4>
+          <span>Sourcing &amp; Logistics</span>
+          <p>
+            Knows every market route across the country and most of the traders
+            by name.
+          </p>
+        </div>
+        <div class="team-card">
+          <div class="photo">
+            <img
+              src="https://images.unsplash.com/photo-1580489944761-15a19d654956?q=80&w=400&auto=format&fit=crop"
+              alt="Portrait of team member"
+            />
+          </div>
+          <h4>Faith Wanjiru</h4>
+          <span>Quality &amp; Restoration</span>
+          <p>
+            Cleans, mends, and decides what's ready for the shop and what needs
+            more love.
+          </p>
+        </div>
+        <div class="team-card">
+          <div class="photo">
+            <img
+              src="https://images.unsplash.com/photo-1556157382-97eda2d62296?q=80&w=400&auto=format&fit=crop"
+              alt="Portrait of team member"
+            />
+          </div>
+          <h4>Daniel Kiptoo</h4>
+          <span>Photography &amp; Listings</span>
+          <p>Makes sure every piece looks as good online as it does in hand.</p>
+        </div>
+      </div>
+    </section>
+
+    <!-- CTA -->
+    <section>
+      <div class="cta">
+        <h2>Got a question, or a find of your own?</h2>
+        <p>
+          We'd love to hear from you — whether it's about an order, a
+          collaboration, or that one rare item you've been hunting for.
+        </p>
+        <a href="#" class="btn-primary">Get in Touch</a>
+      </div>
+    </section>
+
+    <!-- FOOTER -->
+    <footer>
+      <div class="footer-inner">
+        <div class="footer-brand">
+          <h4>Vintage Collections</h4>
+          <p>
+            Curated goods from Kenya. Pre-loved fashion, electronics, and home
+            pieces with a story to tell.
+          </p>
+        </div>
+        <div class="footer-col">
+          <h5>Shop</h5>
+          <ul>
+            <li><a href="shop.html">All Products</a></li>
+            <li><a href="shop.html">Fashion</a></li>
+            <li><a href="shop.html">Electronics</a></li>
+            <li><a href="shop.html">Home &amp; Living</a></li>
+          </ul>
+        </div>
+        <div class="footer-col">
+          <h5>Company</h5>
+          <ul>
+            <li><a href="about.html">About Us</a></li>
+            <li><a href="#">Blog</a></li>
+            <li><a href="#">Careers</a></li>
+            <li><a href="#">Press</a></li>
+          </ul>
+        </div>
+        <div class="footer-col">
+          <h5>Support</h5>
+          <ul>
+            <li><a href="#">Contact Us</a></li>
+            <li><a href="#">FAQ</a></li>
+            <li><a href="#">Shipping Info</a></li>
+            <li><a href="#">Returns</a></li>
+          </ul>
+        </div>
+      </div>
+      <div class="footer-bottom">
+        © 2025 Vintage Collections. All rights reserved. Curated from Kenya with
+        love.
+      </div>
+    </footer>
+    <script>
+      // ============ Mobile Nav ============
+      function openMobileNav() {
+        document.getElementById("mobile-nav-drawer").classList.add("open");
+        document.getElementById("mobile-nav-overlay").classList.add("open");
+        document.body.style.overflow = "hidden";
+      }
+      function closeMobileNav() {
+        document.getElementById("mobile-nav-drawer").classList.remove("open");
+        document.getElementById("mobile-nav-overlay").classList.remove("open");
+        document.body.style.overflow = "";
+      }
+
+      window.goToCart = () => {
+        if (window.showToast) window.showToast("🛒 Cart functionality");
+        else alert("Cart clicked");
+      };
+      window.goToAccount = () => (window.location.href = "account.html");
+      window.toggleWishlistPanel = () =>
+        (window.location.href = "account.html");
+
+      window.performSearch = () => {
+        const q = document.getElementById("search-input").value.trim();
+        if (q)
+          window.location.href = `shop.html?search=${encodeURIComponent(q)}`;
+      };
+      window.performMobileSearch = () => {
+        const q = document.getElementById("mobile-search-input").value.trim();
+        if (q)
+          window.location.href = `shop.html?search=${encodeURIComponent(q)}`;
+      };
+
+      document.addEventListener("keydown", (e) => {
+        if (e.key === "Enter") {
+          if (document.activeElement?.id === "search-input") performSearch();
+          if (document.activeElement?.id === "mobile-search-input")
+            performMobileSearch();
+        }
+      });
+
+      function showToast(message) {
+        const t = document.createElement("div");
+        t.style.cssText =
+          "position:fixed;bottom:24px;right:24px;background:#2c2624;color:white;padding:12px 20px;border-radius:10px;font-size:14px;z-index:9999;box-shadow:0 8px 24px rgba(0,0,0,0.15);";
+        t.textContent = message;
+        document.body.appendChild(t);
+        setTimeout(() => {
+          t.style.opacity = "0";
+          t.style.transition = "opacity 300ms";
+          setTimeout(() => t.remove(), 300);
+        }, 3000);
+      }
+    </script>
+  </body>
+</html>

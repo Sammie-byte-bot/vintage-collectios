@@ -485,6 +485,27 @@
         letter-spacing: 0.05em;
       }
 
+      .option-pill {
+        padding: 8px 16px;
+        border: 1.5px solid var(--border);
+        border-radius: 8px;
+        cursor: pointer;
+        font-size: 13px;
+        font-weight: 600;
+        transition: all 200ms;
+        background: white;
+      }
+
+      .option-pill:hover {
+        border-color: var(--teal);
+      }
+
+      .option-pill.active {
+        background: var(--teal);
+        color: white;
+        border-color: var(--teal);
+      }
+
       .quantity-selector {
         display: flex;
         align-items: center;
@@ -1173,6 +1194,24 @@
           </div>
         </div>
 
+        <!-- Options Section -->
+        <div id="options-container">
+          <div class="product-section" id="color-section" style="display: none">
+            <div class="section-title">Color</div>
+            <div
+              id="color-selection"
+              style="display: flex; gap: 8px; flex-wrap: wrap"
+            ></div>
+          </div>
+          <div class="product-section" id="size-section" style="display: none">
+            <div class="section-title">Size</div>
+            <div
+              id="size-selection"
+              style="display: flex; gap: 8px; flex-wrap: wrap"
+            ></div>
+          </div>
+        </div>
+
         <!-- Quantity Section -->
         <div class="product-section">
           <div class="section-title">Quantity</div>
@@ -1306,6 +1345,8 @@
       let currentProduct = null;
       let wishlist = JSON.parse(localStorage.getItem("wishlist")) || [];
       let cart = JSON.parse(localStorage.getItem("cart")) || [];
+      let selectedColor = null;
+      let selectedSize = null;
 
       // Get product ID from URL
       function getProductIdFromURL() {
@@ -1391,6 +1432,8 @@
             stock: data.stock || 0,
             description: data.description || "No description available",
             condition: data.condition || "Good",
+            colors: data.colors || [],
+            sizes: data.sizes || [],
           };
 
           displayProduct();
@@ -1466,8 +1509,46 @@
                 <span class="rating-text">${currentProduct.rating.toFixed(1)} (${currentProduct.reviews} reviews)</span>
             `;
 
+        // Display Colors and Sizes
+        if (currentProduct.colors.length > 0) {
+          document.getElementById("color-section").style.display = "block";
+          document.getElementById("color-selection").innerHTML =
+            currentProduct.colors
+              .map(
+                (c) => `
+            <button class="option-pill" onclick="selectOption('color', '${c}', this)">${c}</button>
+          `,
+              )
+              .join("");
+        }
+        if (currentProduct.sizes.length > 0) {
+          document.getElementById("size-section").style.display = "block";
+          document.getElementById("size-selection").innerHTML =
+            currentProduct.sizes
+              .map(
+                (s) => `
+            <button class="option-pill" onclick="selectOption('size', '${s}', this)">${s}</button>
+          `,
+              )
+              .join("");
+        }
+
         updateWishlistIcon();
       }
+
+      window.selectOption = (type, value, element) => {
+        const container =
+          type === "color" ? "color-selection" : "size-selection";
+        document
+          .getElementById(container)
+          .querySelectorAll(".option-pill")
+          .forEach((btn) => {
+            btn.classList.remove("active");
+          });
+        element.classList.add("active");
+        if (type === "color") selectedColor = value;
+        else selectedSize = value;
+      };
 
       // Load Related Products
       async function loadRelatedProducts() {
@@ -1548,8 +1629,23 @@
       // Add to Cart
       window.addToCart = () => {
         if (!currentProduct) return;
+
+        if (currentProduct.colors.length > 0 && !selectedColor) {
+          showToast("Please select a color");
+          return;
+        }
+        if (currentProduct.sizes.length > 0 && !selectedSize) {
+          showToast("Please select a size");
+          return;
+        }
+
         const qty = parseInt(document.getElementById("quantity").value);
-        const existingItem = cart.find((item) => item.id === currentProduct.id);
+        const existingItem = cart.find(
+          (item) =>
+            item.id === currentProduct.id &&
+            item.color === selectedColor &&
+            item.size === selectedSize,
+        );
         if (existingItem) {
           existingItem.quantity += qty;
         } else {
@@ -1558,6 +1654,8 @@
             name: currentProduct.name,
             price: currentProduct.price,
             image: currentProduct.images[0],
+            color: selectedColor,
+            size: selectedSize,
             quantity: qty,
           });
         }
@@ -1570,8 +1668,23 @@
       // Buy Now
       window.buyNow = () => {
         if (!currentProduct) return;
+
+        if (currentProduct.colors.length > 0 && !selectedColor) {
+          showToast("Please select a color");
+          return;
+        }
+        if (currentProduct.sizes.length > 0 && !selectedSize) {
+          showToast("Please select a size");
+          return;
+        }
+
         const qty = parseInt(document.getElementById("quantity").value);
-        const existingItem = cart.find((item) => item.id === currentProduct.id);
+        const existingItem = cart.find(
+          (item) =>
+            item.id === currentProduct.id &&
+            item.color === selectedColor &&
+            item.size === selectedSize,
+        );
         if (existingItem) {
           existingItem.quantity += qty;
         } else {
@@ -1580,6 +1693,8 @@
             name: currentProduct.name,
             price: currentProduct.price,
             image: currentProduct.images[0],
+            color: selectedColor,
+            size: selectedSize,
             quantity: qty,
           });
         }
