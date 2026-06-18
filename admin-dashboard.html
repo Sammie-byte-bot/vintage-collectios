@@ -28,6 +28,7 @@
         where,
         Timestamp,
         getDoc,
+        serverTimestamp,
         setDoc,
       } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js";
       import {
@@ -44,7 +45,6 @@
         deleteObject,
       } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-storage.js";
 
-      // ── REPLACE WITH YOUR FIREBASE CONFIG ──────────────────────────────────
       const firebaseConfig = {
         apiKey: "AIzaSyCp9B2FEEGrwLxMFKjKkWnSa3t_vX_l_fY",
         authDomain: "vintage-collections.firebaseapp.com",
@@ -54,7 +54,6 @@
         appId: "1:948077303440:web:0c44665b48e66871002a15",
         measurementId: "G-HQZ7C1HYNR",
       };
-      // ────────────────────────────────────────────────────────────────────────
 
       const app = initializeApp(firebaseConfig);
       const db = getFirestore(app);
@@ -70,6 +69,7 @@
       let allMessages = [];
       let editingProductId = null;
       let editingOfferId = null;
+      let activeMessageId = null; // for chat view
 
       const colorsList = [
         "Black",
@@ -99,20 +99,167 @@
       ];
 
       let uploadedImageURLs = [];
-      let statsCache = {};
+      let dataCache = {
+        products: null,
+        orders: null,
+        users: null,
+        messages: null,
+        cacheTime: {},
+      };
+      const CACHE_DURATION = 5 * 60 * 1000;
+
+      function isCacheValid(key) {
+        const now = Date.now();
+        return (
+          dataCache[key] &&
+          dataCache.cacheTime[key] &&
+          now - dataCache.cacheTime[key] < CACHE_DURATION
+        );
+      }
+      function setCacheData(key, data) {
+        dataCache[key] = data;
+        dataCache.cacheTime[key] = Date.now();
+      }
+      function getCacheData(key) {
+        return isCacheValid(key) ? dataCache[key] : null;
+      }
+
+      // ── SKELETON LOADERS ────────────────────────────────────────────────────
+      function showSkeletonLoader(containerId, type = "chart") {
+        const container = document.getElementById(containerId);
+        if (!container) return;
+        if (type === "chart") {
+          container.innerHTML = `
+            <div class="skeleton-wrap">
+              <div class="skeleton-chart-yaxis">
+                ${Array(5)
+                  .fill(0)
+                  .map(() => `<div class="skel skel-label"></div>`)
+                  .join("")}
+              </div>
+              <div class="skeleton-chart-area">
+                <div class="skeleton-line-track">
+                  <div class="skeleton-line-fill"></div>
+                </div>
+                <div class="skeleton-xaxis">
+                  ${Array(7)
+                    .fill(0)
+                    .map(() => `<div class="skel skel-xlabel"></div>`)
+                    .join("")}
+                </div>
+              </div>
+            </div>`;
+        } else if (type === "table") {
+          container.innerHTML = `
+            <div class="skeleton-wrap">
+              ${Array(5)
+                .fill(0)
+                .map(
+                  () => `
+                <div class="skeleton-row">
+                  <div class="skel skel-thumb"></div>
+                  <div class="skeleton-row-text">
+                    <div class="skel skel-text-lg"></div>
+                    <div class="skel skel-text-sm"></div>
+                  </div>
+                  <div class="skel skel-badge"></div>
+                  <div class="skel skel-btn"></div>
+                </div>`,
+                )
+                .join("")}
+            </div>`;
+        } else if (type === "card") {
+          container.innerHTML = `
+            <div class="skeleton-wrap">
+              ${Array(4)
+                .fill(0)
+                .map(
+                  () => `
+                <div class="skeleton-product-card">
+                  <div class="skel skel-product-img"></div>
+                  <div class="skeleton-product-info">
+                    <div class="skel skel-text-lg" style="width:70%"></div>
+                    <div class="skel skel-text-sm" style="width:45%"></div>
+                    <div class="skel skel-text-sm" style="width:55%;margin-top:6px"></div>
+                  </div>
+                  <div class="skel skel-badge"></div>
+                </div>`,
+                )
+                .join("")}
+            </div>`;
+        } else if (type === "msgs") {
+          container.innerHTML = `
+            <div class="skeleton-wrap">
+              ${Array(6)
+                .fill(0)
+                .map(
+                  () => `
+                <div class="skeleton-msg">
+                  <div class="skel skel-avatar"></div>
+                  <div style="flex:1">
+                    <div class="skel skel-text-lg" style="width:60%"></div>
+                    <div class="skel skel-text-sm" style="width:80%;margin-top:6px"></div>
+                    <div class="skel skel-text-sm" style="width:40%;margin-top:4px"></div>
+                  </div>
+                </div>`,
+                )
+                .join("")}
+            </div>`;
+        }
+      }
+
+      window.sendReply = async () => {
+        const input = document.getElementById("chat-reply-input");
+        const replyText = input.value.trim();
+        if (!replyText || !activeMessageId) return;
+        try {
+          await updateDoc(doc(db, "messages", activeMessageId), {
+            adminReply: replyText,
+            adminReplyAt: serverTimestamp(),
+            read: true,
+          });
+          input.value = "";
+          await openChat(activeMessageId);
+          showToast("Reply sent.");
+        } catch (e) {
+          console.error(e);
+          showToast("Error sending reply.", "error");
+        }
+      };
 
       // ── AUTH GUARD ──────────────────────────────────────────────────────────
-      onAuthStateChanged(auth, (user) => {
+      onAuthStateChanged(auth, async (user) => {
+        const loginScreen = document.getElementById("login-screen");
+        const appScreen = document.getElementById("app");
+        const loadingScreen = document.getElementById("initial-loading-screen");
+        const deniedScreen = document.getElementById("access-denied-screen");
+
         if (user) {
-          document.getElementById("login-screen").style.display = "none";
-          document.getElementById("app").style.display = "flex";
-          document.getElementById("initial-loading-screen").style.display =
-            "flex"; // Show spinner on login
-          document.getElementById("admin-email").textContent = user.email;
-          initDashboard();
+          try {
+            loadingScreen.style.display = "flex";
+            loginScreen.style.display = "none";
+            appScreen.style.display = "none";
+            if (deniedScreen) deniedScreen.style.display = "none";
+
+            const userDoc = await getDoc(doc(db, "users", user.uid));
+            if (userDoc.exists() && userDoc.data().role === "admin") {
+              appScreen.style.display = "flex";
+              document.getElementById("admin-email").textContent = user.email;
+              initDashboard();
+            } else {
+              if (deniedScreen) deniedScreen.style.display = "flex";
+            }
+          } catch (e) {
+            console.error("Error checking role:", e);
+            if (deniedScreen) deniedScreen.style.display = "flex";
+          } finally {
+            loadingScreen.style.display = "none";
+          }
         } else {
-          document.getElementById("login-screen").style.display = "flex";
-          document.getElementById("app").style.display = "none";
+          loginScreen.style.display = "flex";
+          appScreen.style.display = "none";
+          if (deniedScreen) deniedScreen.style.display = "none";
+          loadingScreen.style.display = "none";
         }
       });
 
@@ -121,10 +268,17 @@
         const pass = document.getElementById("login-pass").value;
         const err = document.getElementById("login-error");
         err.textContent = "";
+        err.style.display = "none";
+        if (!email || !pass) {
+          err.textContent = "Please enter both email and password.";
+          err.style.display = "block";
+          return;
+        }
         try {
           await signInWithEmailAndPassword(auth, email, pass);
         } catch (e) {
           err.textContent = "Invalid email or password.";
+          err.style.display = "block";
         }
       };
 
@@ -170,7 +324,6 @@
         document.getElementById("sidebar-overlay").classList.remove("show");
       };
 
-      // ── INIT ─────────────────────────────────────────────────────────────────
       async function initDashboard() {
         await loadDashboard();
       }
@@ -189,20 +342,27 @@
       // ── DASHBOARD ────────────────────────────────────────────────────────────
       async function loadDashboard() {
         try {
-          const [prodSnap, orderSnap, userSnap, msgSnap] = await Promise.all([
-            getDocs(collection(db, "products")),
-            getDocs(collection(db, "orders")),
-            getDocs(collection(db, "users")),
-            getDocs(collection(db, "messages")),
-          ]);
+          let products = getCacheData("products");
+          let orders = getCacheData("orders");
+          let users = getCacheData("users");
+          let messages = getCacheData("messages");
 
-          const products = prodSnap.docs.map((d) => ({
-            id: d.id,
-            ...d.data(),
-          }));
-          const orders = orderSnap.docs.map((d) => ({ id: d.id, ...d.data() }));
-          const users = userSnap.docs.map((d) => ({ id: d.id, ...d.data() }));
-          const messages = msgSnap.docs.map((d) => ({ id: d.id, ...d.data() }));
+          if (!products || !orders || !users || !messages) {
+            const [prodSnap, orderSnap, userSnap, msgSnap] = await Promise.all([
+              getDocs(collection(db, "products")),
+              getDocs(collection(db, "orders")),
+              getDocs(collection(db, "users")),
+              getDocs(collection(db, "messages")),
+            ]);
+            products = prodSnap.docs.map((d) => ({ id: d.id, ...d.data() }));
+            orders = orderSnap.docs.map((d) => ({ id: d.id, ...d.data() }));
+            users = userSnap.docs.map((d) => ({ id: d.id, ...d.data() }));
+            messages = msgSnap.docs.map((d) => ({ id: d.id, ...d.data() }));
+            setCacheData("products", products);
+            setCacheData("orders", orders);
+            setCacheData("users", users);
+            setCacheData("messages", messages);
+          }
 
           const totalRevenue = orders
             .filter((o) =>
@@ -219,7 +379,6 @@
             products.length;
           document.getElementById("stat-customers").textContent = users.length;
 
-          // Recent orders table
           const recent = [...orders]
             .sort(
               (a, b) =>
@@ -243,7 +402,43 @@
             )
             .join("");
 
-          // Low stock
+          const mobileRecent = document.getElementById("recent-orders-mobile");
+          if (mobileRecent) {
+            mobileRecent.innerHTML = recent.length
+              ? recent
+                  .map(
+                    (o) => `
+              <div class="mobile-card" onclick="viewOrder('${o.id}')">
+                <div class="mobile-card-header">
+                  <div style="display:flex;align-items:center;gap:10px">
+                    <img src="${o.items?.[0]?.image || "https://placehold.co/40x40?text=?"}" style="width:40px;height:40px;border-radius:6px;object-fit:cover;"/>
+                    <div>
+                      <div class="mobile-card-title">#${o.id.slice(0, 8).toUpperCase()}</div>
+                      <div class="mobile-card-subtitle">${o.customerName || "Customer"}</div>
+                    </div>
+                  </div>
+                  <span class="badge badge-${statusColor(o.status)}">${o.status || "pending"}</span>
+                </div>
+                <div class="mobile-card-content">
+                  <div class="mobile-card-field">
+                    <div class="mobile-card-field-label">Total</div>
+                    <div class="mobile-card-field-value">KES ${parseFloat(o.total || 0).toLocaleString()}</div>
+                  </div>
+                  <div class="mobile-card-field">
+                    <div class="mobile-card-field-label">Items</div>
+                    <div class="mobile-card-field-value">${(o.items || []).length}</div>
+                  </div>
+                  <div class="mobile-card-field">
+                    <div class="mobile-card-field-label">Date</div>
+                    <div class="mobile-card-field-value">${formatDate(o.createdAt)}</div>
+                  </div>
+                </div>
+              </div>`,
+                  )
+                  .join("")
+              : `<p class="empty-note">No recent orders.</p>`;
+          }
+
           const lowStock = products.filter((p) => (p.stock || 0) <= 5);
           const lowEl = document.getElementById("low-stock-list");
           lowEl.innerHTML = lowStock.length
@@ -262,41 +457,34 @@
                 .join("")
             : `<p class="empty-note">All products are well stocked.</p>`;
 
-          // Unread messages badge
           const unread = messages.filter((m) => !m.read).length;
           document.getElementById("msg-badge").textContent = unread;
           document.getElementById("msg-badge").style.display = unread
             ? "flex"
             : "none";
 
-          // Draw mini revenue chart
           drawRevenueChart(orders);
         } catch (e) {
           console.error(e);
         } finally {
           document.getElementById("initial-loading-screen").style.display =
-            "none"; // Hide spinner after dashboard loads
+            "none";
         }
       }
 
       function drawRevenueChart(orders) {
         const canvas = document.getElementById("revenue-chart");
         if (!canvas) return;
-
         const dpr = window.devicePixelRatio || 1;
-        // Use parent container width for the canvas to ensure it doesn't overflow
         const parent = canvas.parentElement;
-        const W = parent.clientWidth - 40; // Subtract padding
-        const H = 250;
-
+        const W = Math.max(parent.clientWidth - 40, 200);
+        const H = 220;
         canvas.width = W * dpr;
         canvas.height = H * dpr;
         canvas.style.width = W + "px";
         canvas.style.height = H + "px";
-
         const ctx = canvas.getContext("2d");
         ctx.scale(dpr, dpr);
-
         const months = [
           "Jan",
           "Feb",
@@ -313,8 +501,6 @@
         ];
         const currentYear = new Date().getFullYear();
         const data = Array(12).fill(0);
-
-        // Filter for real, confirmed orders from the CURRENT YEAR only
         const validOrders = orders.filter((o) => {
           const date = o.createdAt?.seconds
             ? new Date(o.createdAt.seconds * 1000)
@@ -327,138 +513,83 @@
           ].includes(o.status);
           return date && date.getFullYear() === currentYear && isConfirmed;
         });
-
         validOrders.forEach((o) => {
           const m = new Date(o.createdAt.seconds * 1000).getMonth();
           data[m] += parseFloat(o.total) || 0;
         });
-
         const max = Math.max(...data, 1000);
-        const pad = { top: 30, right: 30, bottom: 40, left: 60 };
+        const pad = { top: 24, right: 16, bottom: 36, left: 52 };
         const chartW = W - pad.left - pad.right;
         const chartH = H - pad.top - pad.bottom;
-
         ctx.clearRect(0, 0, W, H);
-
-        // Grid lines
         ctx.strokeStyle = "#e8ddd3";
         ctx.lineWidth = 1;
-        ctx.setLineDash([4, 4]);
+        ctx.setLineDash([3, 4]);
         for (let i = 0; i <= 4; i++) {
           const y = pad.top + chartH - (chartH / 4) * i;
           ctx.beginPath();
           ctx.moveTo(pad.left, y);
           ctx.lineTo(W - pad.right, y);
           ctx.stroke();
-
           ctx.setLineDash([]);
-          ctx.fillStyle = "#8a7a73";
-          ctx.font = "bold 10px 'Work Sans'";
+          ctx.fillStyle = "#b8a99c";
+          ctx.font = "10px 'Work Sans'";
           ctx.textAlign = "right";
           ctx.textBaseline = "middle";
           const val = Math.round(((max / 4) * i) / 1000);
-          ctx.fillText(`${val}k`, pad.left - 10, y);
-          ctx.setLineDash([4, 4]);
+          ctx.fillText(`${val}k`, pad.left - 6, y);
+          ctx.setLineDash([3, 4]);
         }
         ctx.setLineDash([]);
-
-        // Line Graph
         const stepX = chartW / 11;
         ctx.beginPath();
         ctx.strokeStyle = "#d5572a";
-        ctx.lineWidth = 3;
+        ctx.lineWidth = 2.5;
         ctx.lineJoin = "round";
         ctx.lineCap = "round";
-
         data.forEach((v, i) => {
           const x = pad.left + i * stepX;
           const y = pad.top + chartH - (v / max) * chartH;
-          if (i === 0) ctx.moveTo(x, y);
-          else ctx.lineTo(x, y);
+          i === 0 ? ctx.moveTo(x, y) : ctx.lineTo(x, y);
         });
         ctx.stroke();
-
-        // Area under line
         ctx.lineTo(pad.left + 11 * stepX, pad.top + chartH);
         ctx.lineTo(pad.left, pad.top + chartH);
         const grad = ctx.createLinearGradient(0, pad.top, 0, pad.top + chartH);
-        grad.addColorStop(0, "rgba(213, 87, 42, 0.2)");
-        grad.addColorStop(1, "rgba(213, 87, 42, 0)");
+        grad.addColorStop(0, "rgba(213,87,42,0.15)");
+        grad.addColorStop(1, "rgba(213,87,42,0)");
         ctx.fillStyle = grad;
         ctx.fill();
-
-        // Points
         data.forEach((v, i) => {
           const x = pad.left + i * stepX;
           const y = pad.top + chartH - (v / max) * chartH;
           ctx.fillStyle = "#d5572a";
           ctx.beginPath();
-          ctx.arc(x, y, 4, 0, Math.PI * 2);
+          ctx.arc(x, y, 3.5, 0, Math.PI * 2);
           ctx.fill();
           ctx.strokeStyle = "#fff";
-          ctx.lineWidth = 2;
+          ctx.lineWidth = 1.5;
           ctx.stroke();
-
-          if (v > 0) {
-            ctx.fillStyle = "#6b5b52";
-            ctx.font = "bold 9px 'Work Sans'";
-            ctx.textAlign = "center";
-            const label =
-              v >= 1000 ? (v / 1000).toFixed(1) + "k" : Math.round(v);
-            ctx.fillText(label, x, y - 10);
-          }
-
           ctx.fillStyle = "#8a7a73";
-          ctx.font = "500 10px 'Work Sans'";
+          ctx.font = "9px 'Work Sans'";
           ctx.textAlign = "center";
-          ctx.fillText(months[i], x, H - 15);
+          ctx.fillText(months[i], x, H - 8);
         });
-      }
-
-      // ── ANALYTICS ────────────────────────────────────────────────────────────
-      async function loadAnalytics() {
-        try {
-          const [prodSnap, orderSnap] = await Promise.all([
-            getDocs(collection(db, "products")),
-            getDocs(collection(db, "orders")),
-          ]);
-
-          const products = prodSnap.docs.map((d) => ({
-            id: d.id,
-            ...d.data(),
-          }));
-          const orders = orderSnap.docs.map((d) => ({ id: d.id, ...d.data() }));
-
-          // Draw daily revenue line graph
-          drawDailyRevenueChart(orders);
-
-          // Draw daily orders bar graph
-          drawDailyOrdersChart(orders);
-
-          // Draw category doughnut chart
-          drawCategoryChart(products, orders);
-
-          // Render top products
-          renderTopProducts(products, orders);
-        } catch (e) {
-          console.error(e);
-        }
       }
 
       function drawDailyRevenueChart(orders) {
         const canvas = document.getElementById("daily-revenue-chart");
         if (!canvas) return;
-
         const dpr = window.devicePixelRatio || 1;
-        const rect = canvas.getBoundingClientRect();
-        const W = rect.width || 600;
-        const H = rect.height || 250;
+        const parent = canvas.parentElement;
+        const W = Math.max(parent.clientWidth - 40, 200);
+        const H = 220;
         canvas.width = W * dpr;
         canvas.height = H * dpr;
-
+        canvas.style.width = W + "px";
+        canvas.style.height = H + "px";
         const ctx = canvas.getContext("2d");
         ctx.scale(dpr, dpr);
-
         const labels = [];
         const data = [];
         for (let i = 6; i >= 0; i--) {
@@ -481,103 +612,92 @@
             .reduce((sum, o) => sum + (parseFloat(o.total) || 0), 0);
           data.push(revenue);
         }
-
         const max = Math.max(...data, 5000);
-        const pad = { top: 30, right: 30, bottom: 40, left: 60 };
+        const pad = { top: 24, right: 16, bottom: 36, left: 52 };
         const chartW = W - pad.left - pad.right;
         const chartH = H - pad.top - pad.bottom;
-
         ctx.clearRect(0, 0, W, H);
-
-        // Grid lines
         ctx.strokeStyle = "#e8ddd3";
         ctx.lineWidth = 1;
-        ctx.setLineDash([4, 4]);
+        ctx.setLineDash([3, 4]);
         for (let i = 0; i <= 4; i++) {
           const y = pad.top + chartH - (chartH / 4) * i;
           ctx.beginPath();
           ctx.moveTo(pad.left, y);
           ctx.lineTo(W - pad.right, y);
           ctx.stroke();
-
           ctx.setLineDash([]);
-          ctx.fillStyle = "#8a7a73";
-          ctx.font = "bold 10px 'Work Sans'";
+          ctx.fillStyle = "#b8a99c";
+          ctx.font = "10px 'Work Sans'";
           ctx.textAlign = "right";
           ctx.textBaseline = "middle";
-          const val = Math.round(((max / 4) * i) / 1000);
-          ctx.fillText(`${val}k`, pad.left - 10, y);
-          ctx.setLineDash([4, 4]);
+          ctx.fillText(
+            `${Math.round(((max / 4) * i) / 1000)}k`,
+            pad.left - 6,
+            y,
+          );
+          ctx.setLineDash([3, 4]);
         }
         ctx.setLineDash([]);
-
-        // Line Graph
         const stepX = chartW / 6;
         ctx.beginPath();
         ctx.strokeStyle = "#d5572a";
-        ctx.lineWidth = 3;
+        ctx.lineWidth = 2.5;
         ctx.lineJoin = "round";
         ctx.lineCap = "round";
-
         data.forEach((v, i) => {
           const x = pad.left + i * stepX;
           const y = pad.top + chartH - (v / max) * chartH;
-          if (i === 0) ctx.moveTo(x, y);
-          else ctx.lineTo(x, y);
+          i === 0 ? ctx.moveTo(x, y) : ctx.lineTo(x, y);
         });
         ctx.stroke();
-
-        // Area under line
         ctx.lineTo(pad.left + 6 * stepX, pad.top + chartH);
         ctx.lineTo(pad.left, pad.top + chartH);
         const grad = ctx.createLinearGradient(0, pad.top, 0, pad.top + chartH);
-        grad.addColorStop(0, "rgba(213, 87, 42, 0.2)");
-        grad.addColorStop(1, "rgba(213, 87, 42, 0)");
+        grad.addColorStop(0, "rgba(213,87,42,0.15)");
+        grad.addColorStop(1, "rgba(213,87,42,0)");
         ctx.fillStyle = grad;
         ctx.fill();
-
-        // Points and labels
         data.forEach((v, i) => {
           const x = pad.left + i * stepX;
           const y = pad.top + chartH - (v / max) * chartH;
           ctx.fillStyle = "#d5572a";
           ctx.beginPath();
-          ctx.arc(x, y, 4, 0, Math.PI * 2);
+          ctx.arc(x, y, 3.5, 0, Math.PI * 2);
           ctx.fill();
           ctx.strokeStyle = "#fff";
-          ctx.lineWidth = 2;
+          ctx.lineWidth = 1.5;
           ctx.stroke();
-
           if (v > 0) {
             ctx.fillStyle = "#6b5b52";
             ctx.font = "bold 9px 'Work Sans'";
             ctx.textAlign = "center";
-            const label =
-              v >= 1000 ? (v / 1000).toFixed(1) + "k" : Math.round(v);
-            ctx.fillText(label, x, y - 10);
+            ctx.fillText(
+              v >= 1000 ? (v / 1000).toFixed(1) + "k" : Math.round(v),
+              x,
+              y - 10,
+            );
           }
-
           ctx.fillStyle = "#8a7a73";
-          ctx.font = "500 10px 'Work Sans'";
+          ctx.font = "9px 'Work Sans'";
           ctx.textAlign = "center";
-          ctx.fillText(labels[i], x, H - 15);
+          ctx.fillText(labels[i], x, H - 8);
         });
       }
 
       function drawDailyOrdersChart(orders) {
         const canvas = document.getElementById("daily-orders-chart");
         if (!canvas) return;
-
         const dpr = window.devicePixelRatio || 1;
-        const rect = canvas.getBoundingClientRect();
-        const W = rect.width || 600;
-        const H = rect.height || 250;
+        const parent = canvas.parentElement;
+        const W = Math.max(parent.clientWidth - 40, 200);
+        const H = 220;
         canvas.width = W * dpr;
         canvas.height = H * dpr;
-
+        canvas.style.width = W + "px";
+        canvas.style.height = H + "px";
         const ctx = canvas.getContext("2d");
         ctx.scale(dpr, dpr);
-
         const labels = [];
         const data = [];
         for (let i = 6; i >= 0; i--) {
@@ -586,22 +706,21 @@
           labels.push(d.getDate() + "/" + (d.getMonth() + 1));
           const dayStart = new Date(d.setHours(0, 0, 0, 0)).getTime() / 1000;
           const dayEnd = new Date(d.setHours(23, 59, 59, 999)).getTime() / 1000;
-          const count = orders.filter((o) => {
-            const ts = o.createdAt?.seconds;
-            return ts >= dayStart && ts <= dayEnd;
-          }).length;
-          data.push(count);
+          data.push(
+            orders.filter((o) => {
+              const ts = o.createdAt?.seconds;
+              return ts >= dayStart && ts <= dayEnd;
+            }).length,
+          );
         }
-
         const max = Math.max(...data, 5);
-        const pad = { top: 30, right: 30, bottom: 40, left: 40 };
+        const pad = { top: 24, right: 16, bottom: 36, left: 36 };
         const chartW = W - pad.left - pad.right;
         const chartH = H - pad.top - pad.bottom;
-
         ctx.clearRect(0, 0, W, H);
         ctx.strokeStyle = "#e8ddd3";
         ctx.lineWidth = 1;
-        ctx.setLineDash([4, 4]);
+        ctx.setLineDash([3, 4]);
         for (let i = 0; i <= 4; i++) {
           const y = pad.top + chartH - (chartH / 4) * i;
           ctx.beginPath();
@@ -609,16 +728,15 @@
           ctx.lineTo(W - pad.right, y);
           ctx.stroke();
           ctx.setLineDash([]);
-          ctx.fillStyle = "#8a7a73";
-          ctx.font = "bold 10px 'Work Sans'";
+          ctx.fillStyle = "#b8a99c";
+          ctx.font = "10px 'Work Sans'";
           ctx.textAlign = "right";
-          ctx.fillText(Math.round((max / 4) * i), pad.left - 10, y + 3);
-          ctx.setLineDash([4, 4]);
+          ctx.fillText(Math.round((max / 4) * i), pad.left - 4, y + 3);
+          ctx.setLineDash([3, 4]);
         }
         ctx.setLineDash([]);
-
         const stepX = chartW / 7;
-        const barWidth = stepX * 0.6;
+        const barWidth = stepX * 0.55;
         data.forEach((v, i) => {
           const x = pad.left + i * stepX + (stepX - barWidth) / 2;
           const barH = (v / max) * chartH;
@@ -630,28 +748,27 @@
           ctx.fillStyle = "#6b5b52";
           ctx.font = "bold 10px 'Work Sans'";
           ctx.textAlign = "center";
-          ctx.fillText(v, x + barWidth / 2, y - 8);
+          ctx.fillText(v, x + barWidth / 2, y - 7);
           ctx.fillStyle = "#8a7a73";
-          ctx.font = "500 10px 'Work Sans'";
-          ctx.fillText(labels[i], x + barWidth / 2, H - 15);
+          ctx.font = "9px 'Work Sans'";
+          ctx.fillText(labels[i], x + barWidth / 2, H - 8);
         });
       }
 
       function drawCategoryChart(products, orders) {
         const canvas = document.getElementById("category-chart");
         if (!canvas) return;
-
         const dpr = window.devicePixelRatio || 1;
-        const rect = canvas.getBoundingClientRect();
-        const W = rect.width || 300;
-        const H = rect.height || 300;
+        const parent = canvas.parentElement;
+        const containerW = parent.clientWidth - 40;
+        const W = Math.min(Math.max(containerW, 200), 380);
+        const H = 280;
         canvas.width = W * dpr;
         canvas.height = H * dpr;
-
+        canvas.style.width = W + "px";
+        canvas.style.height = H + "px";
         const ctx = canvas.getContext("2d");
         ctx.scale(dpr, dpr);
-
-        // Count items by category
         const categoryCount = {};
         orders.forEach((o) => {
           (o.items || []).forEach((item) => {
@@ -661,11 +778,16 @@
               (categoryCount[category] || 0) + (parseInt(item.qty) || 1);
           });
         });
-
         const categories = Object.keys(categoryCount);
         const counts = Object.values(categoryCount);
         const total = counts.reduce((a, b) => a + b, 0);
-
+        if (total === 0) {
+          ctx.fillStyle = "#b8a99c";
+          ctx.font = "14px 'Work Sans'";
+          ctx.textAlign = "center";
+          ctx.fillText("No data available", W / 2, H / 2);
+          return;
+        }
         const colors = [
           "#d5572a",
           "#2f6f4f",
@@ -674,17 +796,12 @@
           "#177777",
           "#8a7a73",
         ];
-
         const centerX = W / 2;
-        const centerY = H / 2;
-        const radius = Math.min(W, H) / 2 - 40;
-
+        const centerY = H / 2.2;
+        const radius = Math.min(W / 2.4, 90);
         let currentAngle = -Math.PI / 2;
-
         categories.forEach((category, i) => {
           const sliceAngle = (counts[i] / total) * Math.PI * 2;
-
-          // Draw slice
           ctx.beginPath();
           ctx.moveTo(centerX, centerY);
           ctx.arc(
@@ -697,60 +814,67 @@
           ctx.closePath();
           ctx.fillStyle = colors[i % colors.length];
           ctx.fill();
-
-          // Draw label
+          // White separator
+          ctx.strokeStyle = "#fff";
+          ctx.lineWidth = 2;
+          ctx.stroke();
           const labelAngle = currentAngle + sliceAngle / 2;
-          const labelX = centerX + Math.cos(labelAngle) * (radius * 0.7);
-          const labelY = centerY + Math.sin(labelAngle) * (radius * 0.7);
-
+          const labelX = centerX + Math.cos(labelAngle) * (radius * 0.65);
+          const labelY = centerY + Math.sin(labelAngle) * (radius * 0.65);
           ctx.fillStyle = "#fff";
-          ctx.font = "bold 12px 'Work Sans'";
+          ctx.font = "bold 11px 'Work Sans'";
           ctx.textAlign = "center";
           ctx.textBaseline = "middle";
-          const percentage = ((counts[i] / total) * 100).toFixed(0);
-          ctx.fillText(percentage + "%", labelX, labelY);
-
+          ctx.fillText(
+            ((counts[i] / total) * 100).toFixed(0) + "%",
+            labelX,
+            labelY,
+          );
           currentAngle += sliceAngle;
         });
-
-        // Draw legend
-        let legendY = H - 80;
+        // Legend
+        const legendStartY = centerY + radius + 20;
+        const colW = W / 2;
         categories.forEach((category, i) => {
+          const col = i % 2;
+          const row = Math.floor(i / 2);
+          const lx = col === 0 ? 10 : colW + 10;
+          const ly = legendStartY + row * 20;
           ctx.fillStyle = colors[i % colors.length];
-          ctx.fillRect(20, legendY, 12, 12);
+          ctx.beginPath();
+          ctx.roundRect(lx, ly - 5, 10, 10, 2);
+          ctx.fill();
           ctx.fillStyle = "#6b5b52";
           ctx.font = "11px 'Work Sans'";
           ctx.textAlign = "left";
-          ctx.fillText(category + " (" + counts[i] + ")", 40, legendY + 6);
-          legendY += 18;
+          ctx.textBaseline = "middle";
+          const label =
+            category.length > 12 ? category.substring(0, 10) + "…" : category;
+          ctx.fillText(`${label} (${counts[i]})`, lx + 14, ly);
         });
       }
 
       function renderTopProducts(products, orders) {
-        // Calculate purchases for each product
         const productPurchases = {};
         orders.forEach((o) => {
           (o.items || []).forEach((item) => {
             const product = products.find((p) => p.name === item.name);
             if (product) {
-              if (!productPurchases[product.id]) {
+              if (!productPurchases[product.id])
                 productPurchases[product.id] = {
                   ...product,
                   purchases: 0,
                   revenue: 0,
                 };
-              }
               productPurchases[product.id].purchases += parseInt(item.qty) || 1;
               productPurchases[product.id].revenue +=
                 parseFloat(item.price) * parseInt(item.qty) || 0;
             }
           });
         });
-
         const topProducts = Object.values(productPurchases)
           .sort((a, b) => b.revenue - a.revenue)
           .slice(0, 5);
-
         const container = document.getElementById("top-products-list");
         container.innerHTML = topProducts.length
           ? topProducts
@@ -776,24 +900,70 @@
           : `<p class="empty-note">No products sold yet.</p>`;
       }
 
+      // ── ANALYTICS ────────────────────────────────────────────────────────────
+      async function loadAnalytics() {
+        showSkeletonLoader("daily-revenue-chart-container", "chart");
+        showSkeletonLoader("daily-orders-chart-container", "chart");
+        showSkeletonLoader("category-chart-container", "chart");
+        showSkeletonLoader("top-products-list", "card");
+        try {
+          let products = getCacheData("products");
+          let orders = getCacheData("orders");
+          if (!products || !orders) {
+            const [prodSnap, orderSnap] = await Promise.all([
+              getDocs(collection(db, "products")),
+              getDocs(collection(db, "orders")),
+            ]);
+            products = prodSnap.docs.map((d) => ({ id: d.id, ...d.data() }));
+            orders = orderSnap.docs.map((d) => ({ id: d.id, ...d.data() }));
+            setCacheData("products", products);
+            setCacheData("orders", orders);
+          }
+          allProducts = products;
+          allOrders = orders;
+          // Restore canvas elements before drawing
+          document.getElementById("daily-revenue-chart-container").innerHTML =
+            `<canvas id="daily-revenue-chart" class="analytics-chart"></canvas>`;
+          document.getElementById("daily-orders-chart-container").innerHTML =
+            `<canvas id="daily-orders-chart" class="analytics-chart"></canvas>`;
+          document.getElementById("category-chart-container").innerHTML =
+            `<canvas id="category-chart" class="analytics-chart"></canvas>`;
+          drawDailyRevenueChart(orders);
+          drawDailyOrdersChart(orders);
+          drawCategoryChart(products, orders);
+          renderTopProducts(products, orders);
+        } catch (e) {
+          console.error(e);
+          showToast("Error loading analytics", "error");
+        }
+      }
+
       // ── PRODUCTS ─────────────────────────────────────────────────────────────
       async function loadProducts() {
-        const [prodSnap, orderSnap] = await Promise.all([
-          getDocs(
-            query(collection(db, "products"), orderBy("createdAt", "desc")),
-          ),
-          getDocs(collection(db, "orders")),
-        ]);
-        const orders = orderSnap.docs.map((d) => d.data());
-        allProducts = prodSnap.docs.map((d) => {
-          const p = d.data();
-          const purchases = orders.reduce((count, o) => {
-            const itemMatch = (o.items || []).find((it) => it.name === p.name);
-            return count + (itemMatch ? parseInt(itemMatch.qty) : 0);
-          }, 0);
-          return { id: d.id, ...p, purchases };
-        });
-        renderProductsTable(allProducts);
+        showSkeletonLoader("products-table-body", "table");
+        try {
+          const [prodSnap, orderSnap] = await Promise.all([
+            getDocs(
+              query(collection(db, "products"), orderBy("createdAt", "desc")),
+            ),
+            getDocs(collection(db, "orders")),
+          ]);
+          const orders = orderSnap.docs.map((d) => d.data());
+          allProducts = prodSnap.docs.map((d) => {
+            const p = d.data();
+            const purchases = orders.reduce((count, o) => {
+              const itemMatch = (o.items || []).find(
+                (it) => it.name === p.name,
+              );
+              return count + (itemMatch ? parseInt(itemMatch.qty) : 0);
+            }, 0);
+            return { id: d.id, ...p, purchases };
+          });
+          renderProductsTable(allProducts);
+        } catch (e) {
+          console.error(e);
+          showToast("Error loading products", "error");
+        }
       }
 
       function renderProductsTable(products) {
@@ -806,7 +976,7 @@
             <td>
               <strong>${p.name}</strong><br/>
               <small>${p.category}</small>
-              <div style="font-size: 11px; color: #8a7a73; margin-top: 4px;">
+              <div style="font-size:11px;color:#8a7a73;margin-top:4px">
                 ${p.colors?.length ? `Colors: ${p.colors.join(", ")}` : ""}
                 ${p.colors?.length && p.sizes?.length ? " | " : ""}
                 ${p.sizes?.length ? `Sizes: ${p.sizes.join(", ")}` : ""}
@@ -817,8 +987,8 @@
             <td>${p.stock ?? "—"}</td>
             <td><span class="badge badge-${p.stock > 0 ? "green" : "red"}">${p.stock > 0 ? "In Stock" : "Out"}</span></td>
             <td>
-              <button class="table-action" onclick="openProductModal('${p.id}')">Edit</button>
-              <button class="table-action danger" onclick="deleteProduct('${p.id}')">Delete</button>
+              <button class="table-action" onclick="openProductModal('${p.id}')" title="Edit"><svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 5v14M5 12h14"/></svg></button>
+              <button class="table-action danger" onclick="deleteProduct('${p.id}')" title="Delete"><svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 6h18M19 6v14c0 1-1 2-2 2H7c-1 0-2-1-2-2V6M8 6V4c0-1 1-2 2-2h4c1 0 2 1 2 2v2M10 11v6M14 11v6"/></svg></button>
             </td>
           </tr>`,
           )
@@ -833,42 +1003,17 @@
               (p) => `
             <div class="mobile-card" onclick="openProductModal('${p.id}')">
               <div class="mobile-card-header">
-                <div style="display: flex; align-items: center; gap: 12px;">
-                  <img src="${p.images?.[0] || "https://placehold.co/48x48?text=?"}" style="width: 48px; height: 48px; border-radius: 8px; object-fit: cover; flex-shrink: 0;" alt="${p.name}"/>
-                  <div>
-                    <div class="mobile-card-title">${p.name}</div>
-                    <div class="mobile-card-subtitle">${p.category}</div>
-                  </div>
-                </div>
-                <div style="display: flex; gap: 8px;">
-                  <button class="table-action" style="padding: 6px; margin: 0; border-radius: 50%;" onclick="event.stopPropagation(); openProductModal('${p.id}')">
-                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" width="16" height="16"><line x1="12" y1="5" x2="12" y2="19"></line><line x1="5" y1="12" x2="19" y2="12"></line></svg>
-                  </button>
-                  <button class="table-action danger" style="padding: 6px; margin: 0; border-radius: 50%;" onclick="event.stopPropagation(); deleteProduct('${p.id}')">
-                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" width="16" height="16"><polyline points="3 6 5 6 21 6"></polyline><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"></path></svg>
-                  </button>
+                <div style="display:flex;align-items:center;gap:12px">
+                  <img src="${p.images?.[0] || "https://placehold.co/48x48?text=?"}" style="width:48px;height:48px;border-radius:8px;object-fit:cover;flex-shrink:0;" alt="${p.name}"/>
+                  <div><div class="mobile-card-title">${p.name}</div><div class="mobile-card-subtitle">${p.category}</div></div>
                 </div>
               </div>
               <div class="mobile-card-content">
-                <div class="mobile-card-field">
-                  <div class="mobile-card-field-label">Price</div>
-                  <div class="mobile-card-field-value">KES ${(p.price || 0).toLocaleString()}</div>
-                </div>
-                <div class="mobile-card-field">
-                  <div class="mobile-card-field-label">Purchases</div>
-                  <div class="mobile-card-field-value">${p.purchases || 0}</div>
-                </div>
-                <div class="mobile-card-field">
-                  <div class="mobile-card-field-label">Stock</div>
-                  <div class="mobile-card-field-value">${p.stock ?? "—"}</div>
-                </div>
-              </div>
-              <div style="margin-top: 12px">
-                <span class="badge badge-${p.stock > 0 ? "green" : "red"}">${p.stock > 0 ? "In Stock" : "Out"}</span>
-              </div>
-              <div class="mobile-card-menu" id="menu-product-${p.id}">
-                <button class="mobile-card-menu-item" onclick="event.stopPropagation(); openProductModal('${p.id}')">Edit</button>
-                <button class="mobile-card-menu-item danger" onclick="event.stopPropagation(); deleteProduct('${p.id}')">Delete</button>
+                <div class="mobile-card-field"><div class="mobile-card-field-label">Price</div><div class="mobile-card-field-value">KES ${(p.price || 0).toLocaleString()}</div></div>
+                <div class="mobile-card-field"><div class="mobile-card-field-label">Stock</div><div class="mobile-card-field-value">${p.stock ?? "—"}</div></div>
+                <div class="mobile-card-field"><div class="mobile-card-field-label">Sales</div><div class="mobile-card-field-value">${p.purchases || 0}</div></div>
+                <div class="mobile-card-field"><div class="mobile-card-field-label">Sizes</div><div class="mobile-card-field-value">${p.sizes?.length ? p.sizes.join(", ") : "—"}</div></div>
+                <div class="mobile-card-field"><div class="mobile-card-field-label">Status</div><div class="mobile-card-field-value"><span class="badge badge-${p.stock > 0 ? "green" : "red"}">${p.stock > 0 ? "In Stock" : "Out"}</span></div></div>
               </div>
             </div>`,
             )
@@ -878,63 +1023,54 @@
 
       window.filterProducts = () => {
         const q = document.getElementById("product-search").value.toLowerCase();
+        const cat = document.getElementById("product-category-filter").value;
         renderProductsTable(
           allProducts.filter(
             (p) =>
-              p.name?.toLowerCase().includes(q) ||
-              p.category?.toLowerCase().includes(q),
+              (!q || p.name?.toLowerCase().includes(q)) &&
+              (!cat || p.category === cat),
           ),
         );
       };
 
-      window.openProductModal = async (id = null) => {
-        editingProductId = id;
+      window.openProductModal = async (id) => {
         uploadedImageURLs = [];
-        const modal = document.getElementById("product-modal");
-        const title = document.getElementById("modal-title");
-        const form = document.getElementById("product-form");
-        const btn = document.getElementById("save-product-btn");
-        form.reset();
-        document.getElementById("image-preview-list").innerHTML = "";
-        btn.classList.remove("loading");
-        btn.disabled = false;
-
         if (id) {
-          title.textContent = "Edit Product";
           const snap = await getDoc(doc(db, "products", id));
-          const p = { id: snap.id, ...snap.data() };
-          form["prod-name"].value = p.name || "";
-          form["prod-category"].value = p.category || "";
-          form["prod-price"].value = p.price || "";
-          form["prod-original-price"].value = p.originalPrice || "";
-          form["prod-stock"].value = p.stock ?? "";
-          form["prod-seller"].value = p.seller || "";
-          form["prod-description"].value = p.description || "";
-          form["prod-bestseller"].checked = p.bestseller || false;
-          form["prod-on-sale"].checked = p.onSale || false;
-          form["prod-discount"].value = p.discount || "";
-          form["prod-condition"].value = p.condition || "Good";
+          const p = snap.data();
+          editingProductId = id;
+          document.getElementById("product-form")["prod-name"].value = p.name;
+          document.getElementById("product-form")["prod-category"].value =
+            p.category;
+          document.getElementById("product-form")["prod-price"].value = p.price;
+          document.getElementById("product-form")["prod-original-price"].value =
+            p.originalPrice || "";
+          document.getElementById("product-form")["prod-stock"].value = p.stock;
 
-          toggleSizeOptions(p.category || "Women");
-          (p.colors || []).forEach((c) => {
-            const el = document.querySelector(
-              `input[name="prod-colors"][value="${c}"]`,
-            );
-            if (el) el.checked = true;
-          });
-          (p.sizes || []).forEach((s) => {
-            const el = document.querySelector(
-              `input[name="prod-sizes"][value="${s}"]`,
-            );
-            if (el) el.checked = true;
-          });
+          document.getElementById("product-form")["prod-description"].value =
+            p.description || "";
 
+          document.getElementById("product-form")["prod-condition"].value =
+            p.condition || "New";
           uploadedImageURLs = p.images || [];
+          handleCategoryChange(); // Initialize sizes based on the loaded category
           renderImagePreviews();
+          document
+            .querySelectorAll('input[name="prod-colors"]')
+            .forEach((el) => {
+              el.checked = (p.colors || []).includes(el.value);
+            });
+          document
+            .querySelectorAll('input[name="prod-sizes"]')
+            .forEach((el) => {
+              el.checked = (p.sizes || []).includes(el.value);
+            });
         } else {
-          title.textContent = "Add Product";
+          editingProductId = null;
+          document.getElementById("product-form").reset();
+          handleCategoryChange(); // Initialize sizes for the default category
         }
-        modal.classList.add("open");
+        document.getElementById("product-modal").classList.add("open");
       };
 
       window.closeProductModal = () => {
@@ -942,14 +1078,13 @@
         editingProductId = null;
       };
 
-      window.toggleSizeOptions = (category) => {
+      window.handleCategoryChange = () => {
+        const category =
+          document.getElementById("product-form")["prod-category"].value;
         const container = document.getElementById("size-options");
         container.innerHTML = "";
         const sizes = category === "Shoes" ? shoeSizes : clothingSizes;
-
-        document.getElementById("size-group").style.display =
-          category === "Beauty" ? "none" : "block";
-
+        document.getElementById("size-group").style.display = "block";
         sizes.forEach((size) => {
           const label = document.createElement("label");
           label.className = "form-check";
@@ -964,10 +1099,9 @@
         container.innerHTML = colorsList
           .map(
             (color) => `
-          <label class="form-check" style="margin-right: 10px;">
+          <label class="form-check" style="margin-right:10px">
             <input type="checkbox" name="prod-colors" value="${color}"> ${color}
-          </label>
-        `,
+          </label>`,
           )
           .join("");
       }
@@ -977,38 +1111,26 @@
         const bar = document.getElementById("upload-progress");
         bar.style.display = "block";
         let loadedCount = 0;
-
         for (const file of files) {
-          // Validate file is an image
           if (!file.type.startsWith("image/")) {
             showToast(`${file.name} is not a valid image file.`, "error");
             continue;
           }
-
-          // Convert image to Base64
           const reader = new FileReader();
           reader.onload = (event) => {
-            const base64String = event.target.result;
-            uploadedImageURLs.push(base64String);
+            uploadedImageURLs.push(event.target.result);
             loadedCount++;
             renderImagePreviews();
-            if (loadedCount === files.length) {
-              bar.style.display = "none";
-            }
+            if (loadedCount === files.length) bar.style.display = "none";
           };
           reader.onerror = () => {
             showToast(`Failed to read ${file.name}.`, "error");
             loadedCount++;
-            if (loadedCount === files.length) {
-              bar.style.display = "none";
-            }
+            if (loadedCount === files.length) bar.style.display = "none";
           };
           reader.readAsDataURL(file);
         }
-
-        if (files.length === 0) {
-          bar.style.display = "none";
-        }
+        if (files.length === 0) bar.style.display = "none";
       };
 
       function renderImagePreviews() {
@@ -1038,11 +1160,9 @@
           price: parseFloat(form["prod-price"].value) || 0,
           originalPrice: parseFloat(form["prod-original-price"].value) || null,
           stock: parseInt(form["prod-stock"].value) || 0,
-          seller: form["prod-seller"].value.trim(),
+
           description: form["prod-description"].value.trim(),
-          bestseller: form["prod-bestseller"].checked,
-          onSale: form["prod-on-sale"].checked,
-          discount: form["prod-discount"].value.trim(),
+
           condition: form["prod-condition"].value,
           colors: Array.from(
             document.querySelectorAll('input[name="prod-colors"]:checked'),
@@ -1053,20 +1173,16 @@
           images: uploadedImageURLs,
           updatedAt: Timestamp.now(),
         };
-
         if (!data.name) {
           showToast("Product name is required.", "error");
           return;
         }
-
         if (uploadedImageURLs.length === 0) {
           showToast("At least one product image is required.", "error");
           return;
         }
-
         btn.classList.add("loading");
         btn.disabled = true;
-
         try {
           if (editingProductId) {
             await updateDoc(doc(db, "products", editingProductId), data);
@@ -1099,11 +1215,17 @@
 
       // ── ORDERS ──────────────────────────────────────────────────────────────
       async function loadOrders() {
-        const snap = await getDocs(
-          query(collection(db, "orders"), orderBy("createdAt", "desc")),
-        );
-        allOrders = snap.docs.map((d) => ({ id: d.id, ...d.data() }));
-        renderOrdersTable(allOrders);
+        showSkeletonLoader("orders-table-body", "table");
+        try {
+          const snap = await getDocs(
+            query(collection(db, "orders"), orderBy("createdAt", "desc")),
+          );
+          allOrders = snap.docs.map((d) => ({ id: d.id, ...d.data() }));
+          renderOrdersTable(allOrders);
+        } catch (e) {
+          console.error(e);
+          showToast("Error loading orders", "error");
+        }
       }
 
       function renderOrdersTable(orders) {
@@ -1118,9 +1240,13 @@
             <td>${o.customerEmail || "—"}</td>
             <td>KES ${parseFloat(o.total || 0).toLocaleString()}</td>
             <td>${(o.items || []).length}</td>
-            <td><span class="badge badge-${statusColor(o.status)}">${o.status || "pending"}</span></td>
+            <td>
+              <select class="status-dropdown status-${statusColor(o.status)}" onchange="updateOrderStatus('${o.id}', this.value)">
+                ${["pending", "confirmed", "processing", "shipped", "delivered", "cancelled"].map((s) => `<option value="${s}" ${o.status === s ? "selected" : ""}>${capitalize(s)}</option>`).join("")}
+              </select>
+            </td>
             <td>${formatDate(o.createdAt)}</td>
-            <td><button class="table-action" onclick="viewOrder('${o.id}')">View</button></td>
+            <td><button class="table-action view-btn" onclick="viewOrder('${o.id}')">View</button></td>
           </tr>`,
           )
           .join("");
@@ -1128,63 +1254,50 @@
         const mobileContainer = document.getElementById("orders-mobile-cards");
         if (mobileContainer) {
           mobileContainer.innerHTML = orders
-            .map(
-              (o) => `
-            <div class="mobile-card" onclick="event.stopPropagation()">
-              <div class="mobile-card-header">
-                <div style="display: flex; align-items: center; gap: 12px;">
-                  <img src="${o.items?.[0]?.image || "https://placehold.co/48x48?text=?"}" style="width: 48px; height: 48px; border-radius: 8px; object-fit: cover; flex-shrink: 0;" alt="Order"/>
+            .map((o) => {
+              const mainImg =
+                o.items?.[0]?.image || "https://placehold.co/44x44?text=?";
+              return `
+            <div class="mobile-order-card">
+              <div class="mobile-order-card-top">
+                <div style="display:flex;align-items:center;gap:10px">
+                  <svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="var(--primary)" stroke-width="2"><path d="M6 2L3 6v14a2 2 0 002 2h14a2 2 0 002-2V6l-3-4H6z"/><path d="M3 6h18"/><path d="M16 10a4 4 0 01-8 0"/></svg>
                   <div>
-                    <div class="mobile-card-title">#${o.id.slice(0, 8).toUpperCase()}</div>
-                    <div class="mobile-card-subtitle">${o.customerName || "Customer"}</div>
+                    <div class="mobile-order-id">#${o.id.slice(0, 8).toUpperCase()}</div>
+                    <div class="mobile-order-customer">${o.customerName || "Customer"}</div>
                   </div>
                 </div>
-                <button class="mobile-card-menu-btn" onclick="event.stopPropagation(); toggleOrderMenu(this, '${o.id}')">⋯</button>
+                <span class="badge badge-${statusColor(o.status)}" style="font-size:11px">${capitalize(o.status || "pending")}</span>
               </div>
-              <div style="margin-bottom: 12px; padding-bottom: 12px; border-bottom: 1px solid var(--border); font-size: 12px; color: #b8a99c;">
-                Order ID: ${o.id.toUpperCase()}
+              <div class="mobile-order-items">
+                ${(o.items || [])
+                  .map(
+                    (it) => `
+                  <div class="mobile-order-item-row">
+                    <img src="${it.image || mainImg}" class="mobile-order-item-img" alt="${it.name || "Item"}"/>
+                    <div class="mobile-order-item-info">
+                      <div class="mobile-order-item-name">${it.name} ${it.size ? `(${it.size})` : ""}</div>
+                      <div class="mobile-order-item-price">KES ${(parseFloat(it.price) || 0).toLocaleString()} × ${it.qty}</div>
+                    </div>
+                  </div>`,
+                  )
+                  .join("")}
               </div>
-              ${(o.items || [])
-                .map(
-                  (it) => `
-              <div class="mobile-card-item">
-                <img src="${it.image || "https://placehold.co/50x50?text=?"}" class="mobile-card-item-image" alt="${it.name || "Product"}"/>
-                <div class="mobile-card-item-info">
-                  <div class="mobile-card-item-name">${it.name || "Unknown Product"}</div>
-                  ${it.color ? `<div class="variation-row standout-variation"><span class="badge badge-blue" style="font-size:9px">COLOR</span> ${it.color}</div>` : ""}
-                  ${it.size ? `<div class="variation-row standout-variation"><span class="badge badge-orange" style="font-size:9px">SIZE</span> ${it.size}</div>` : ""}
-                  <div class="mobile-card-item-price">KES ${(parseFloat(it.price) || 0).toLocaleString()} | Qty: ${it.qty || 1}</div>
-                </div>
+              <div class="mobile-order-meta">
+                <div class="mobile-order-meta-row"><span class="mobile-order-meta-label">Total Amount</span><span class="mobile-order-total">KES ${(parseFloat(o.total) || 0).toLocaleString()}</span></div>
+                <div class="mobile-order-meta-row"><span class="mobile-order-meta-label">Date</span><span>${formatDate(o.createdAt)}</span></div>
               </div>
-              `,
-                )
-                .join("")}
-              <div style="margin-top: 12px; padding-top: 12px; border-top: 1px solid var(--border); display: grid; grid-template-columns: 1fr 1fr; gap: 12px;">
-                <div class="mobile-card-field">
-                  <div class="mobile-card-field-label">Payment</div>
-                  <div class="mobile-card-field-value">${o.paymentMethod || "—"}</div>
-                </div>
-                <div class="mobile-card-field">
-                  <div class="mobile-card-field-label">Status</div>
-                  <div class="mobile-card-field-value"><span class="badge badge-${statusColor(o.status)}">${capitalize(o.status)}</span></div>
-                </div>
-                <div class="mobile-card-field">
-                  <div class="mobile-card-field-label">Delivery</div>
-                  <div class="mobile-card-field-value">${o.estimatedDelivery || "—"}</div>
-                </div>
-                <div class="mobile-card-field">
-                  <div class="mobile-card-field-label">Total</div>
-                  <div class="mobile-card-field-value">KES ${(parseFloat(o.total) || 0).toLocaleString()}</div>
-                </div>
-              </div>
-              <button class="view-details-btn" onclick="viewOrder('${o.id}')">View Order Details</button>
-              <div class="mobile-card-menu" id="menu-order-${o.id}">
-                <select class="mobile-card-menu-item" style="width:100%; padding: 10px; border:none;" onchange="event.stopPropagation(); updateOrderStatus('${o.id}', this.value)">
+              <div class="mobile-order-actions">
+                <select class="mobile-status-select status-${statusColor(o.status)}" onchange="updateOrderStatusMobile('${o.id}', this)">
                   ${["pending", "confirmed", "processing", "shipped", "delivered", "cancelled"].map((s) => `<option value="${s}" ${o.status === s ? "selected" : ""}>${capitalize(s)}</option>`).join("")}
                 </select>
+                <button class="mobile-view-btn" onclick="viewOrder('${o.id}')">
+                  <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/></svg>
+                  View Details
+                </button>
               </div>
-            </div>`,
-            )
+            </div>`;
+            })
             .join("");
         }
       }
@@ -1208,7 +1321,33 @@
           status,
           updatedAt: Timestamp.now(),
         });
+        // Update the select styling
+        const selects = document.querySelectorAll(`select[onchange*="${id}"]`);
+        selects.forEach((sel) => {
+          sel.className = sel.className.replace(
+            /status-\w+/g,
+            `status-${statusColor(status)}`,
+          );
+        });
         showToast(`Order marked as ${status}.`);
+        // update in-memory
+        const idx = allOrders.findIndex((o) => o.id === id);
+        if (idx !== -1) allOrders[idx].status = status;
+      };
+
+      window.updateOrderStatusMobile = async (id, selectEl) => {
+        const status = selectEl.value;
+        await updateDoc(doc(db, "orders", id), {
+          status,
+          updatedAt: Timestamp.now(),
+        });
+        selectEl.className = selectEl.className.replace(
+          /status-\w+/g,
+          `status-${statusColor(status)}`,
+        );
+        showToast(`Order marked as ${status}.`);
+        const idx = allOrders.findIndex((o) => o.id === id);
+        if (idx !== -1) allOrders[idx].status = status;
       };
 
       window.viewOrder = async (id) => {
@@ -1237,18 +1376,17 @@
                   <td><img src="${it.image || "https://placehold.co/40x40?text=?"}" style="width:40px;height:40px;border-radius:4px;object-fit:cover;"/></td>
                   <td>
                     <strong>${it.name}</strong>
-                    ${it.color || it.size ? `<br/><small style="color: #8a7a73">${it.color ? `Color: ${it.color}` : ""} ${it.size ? (it.color ? `| Size: ${it.size}` : `Size: ${it.size}`) : ""}</small>` : ""}
+                    ${it.color || it.size ? `<br/><small style="color:#8a7a73">${it.color ? `Color: ${it.color}` : ""} ${it.size ? (it.color ? `| Size: ${it.size}` : `Size: ${it.size}`) : ""}</small>` : ""}
                   </td>
                   <td>${it.qty}</td>
                   <td>KES ${(parseFloat(it.price) * parseInt(it.qty)).toLocaleString()}</td>
                 </tr>`,
                 )
                 .join("")}
-              <tr><td colspan="2"><strong>Total</strong></td><td><strong>KES ${parseFloat(o.total || 0).toLocaleString()}</strong></td></tr>
+              <tr><td colspan="2"><strong>Total</strong></td><td colspan="2"><strong>KES ${parseFloat(o.total || 0).toLocaleString()}</strong></td></tr>
             </tbody>
           </table>
-          ${o.notes ? `<p style="margin-top:12px;color:#6b5b52"><em>Note: ${o.notes}</em></p>` : ""}
-        `;
+          ${o.notes ? `<p style="margin-top:12px;color:#6b5b52"><em>Note: ${o.notes}</em></p>` : ""}`;
         modal.classList.add("open");
       };
 
@@ -1257,85 +1395,108 @@
 
       // ── USERS ────────────────────────────────────────────────────────────────
       async function loadUsers() {
-        const [userSnap, orderSnap] = await Promise.all([
-          getDocs(query(collection(db, "users"), orderBy("createdAt", "desc"))),
-          getDocs(collection(db, "orders")),
-        ]);
-        const orders = orderSnap.docs.map((d) => d.data());
-        allUsers = userSnap.docs.map((d) => {
-          const userData = d.data();
-          const userOrders = orders.filter((o) => o.userId === d.id);
-          return {
-            id: d.id,
-            ...userData,
-            ordersCount: userOrders.length,
-            totalSpent: userOrders.reduce(
+        showSkeletonLoader("users-table-body", "table");
+        try {
+          // Load users with better fallback handling
+          const [userSnap, orderSnap] = await Promise.all([
+            getDocs(
+              query(collection(db, "users"), orderBy("createdAt", "desc")),
+            ),
+            getDocs(collection(db, "orders")),
+          ]);
+          const orders = orderSnap.docs.map((d) => d.data());
+          allUsers = userSnap.docs.map((d) => {
+            const u = d.data();
+            // Match by email or by userId
+            const userOrders = orders.filter(
+              (o) =>
+                (u.email && o.customerEmail === u.email) || o.userId === d.id,
+            );
+            const orderCount = userOrders.length;
+            const totalSpent = userOrders.reduce(
               (sum, o) => sum + (parseFloat(o.total) || 0),
               0,
-            ),
-          };
-        });
-        renderUsersTable(allUsers);
+            );
+            return {
+              id: d.id,
+              name: u.name || u.displayName || u.fullName || "",
+              email: u.email || "",
+              phone: u.phone || u.phoneNumber || "",
+              avatar: u.photoURL || "",
+              createdAt: u.createdAt,
+              orderCount,
+              totalSpent,
+            };
+          });
+          renderUsersTable(allUsers);
+        } catch (e) {
+          console.error(e);
+          showToast("Error loading customers", "error");
+        }
       }
 
       function renderUsersTable(users) {
         const tbody = document.getElementById("users-table-body");
-        tbody.innerHTML = users
-          .map(
-            (u) => `
-          <tr>
-            <td><div class="avatar">${(u.name || u.email || "?")[0].toUpperCase()}</div></td>
-            <td>${u.photoURL ? `<img src="${u.photoURL}" class="avatar" style="object-fit: cover;" />` : `<div class="avatar">${(u.name || u.email || "?")[0].toUpperCase()}</div>`}</td>
-            <td>${u.name || "—"}</td>
-            <td>${u.email || "—"}</td>
-            <td>${u.phone || "—"}</td>
-            <td>${u.ordersCount || 0}</td>
-            <td>KES ${(u.totalSpent || 0).toLocaleString()}</td>
-            <td>${formatDate(u.createdAt)}</td>
-          </tr>`,
-          )
-          .join("");
+        tbody.innerHTML =
+          users
+            .map((u) => {
+              const initials = (u.name || u.email || "?")[0].toUpperCase();
+              const displayName = u.name || u.email?.split("@")[0] || "Unknown";
+              return `
+            <tr>
+              <td>
+                ${
+                  u.avatar
+                    ? `<img src="${u.avatar}" class="prod-thumb" style="border-radius:50%;width:36px;height:36px;" alt="${displayName}"/>`
+                    : `<div class="avatar">${initials}</div>`
+                }
+              </td>
+              <td>
+                <strong>${displayName}</strong><br/>
+                <small style="color:#8a7a73">${u.email || "No email"}</small>
+              </td>
+              <td>${u.phone || "—"}</td>
+              <td>${u.orderCount || 0}</td>
+              <td>KES ${(u.totalSpent || 0).toLocaleString()}</td>
+              <td><button class="table-action view-btn" onclick="viewUser('${u.id}')">View</button></td>
+            </tr>`;
+            })
+            .join("") ||
+          `<tr><td colspan="6" class="empty-note">No customers found.</td></tr>`;
 
         const mobileContainer = document.getElementById("users-mobile-cards");
         if (mobileContainer) {
-          mobileContainer.innerHTML = users
-            .map(
-              (u) => `
-            <div class="mobile-card" onclick="event.stopPropagation()">
-              <div class="mobile-card-header">
-                <div style="display: flex; align-items: center; gap: 12px;">
-                  ${u.photoURL ? `<img src="${u.photoURL}" style="width: 40px; height: 40px; border-radius: 50%; object-fit: cover;" />` : `<div class="avatar" style="width: 40px; height: 40px;">${(u.name || u.email || "?")[0].toUpperCase()}</div>`}
-                  <div>
-                    <div class="mobile-card-title">${u.name || u.email || "Customer"}</div>
-                    <div class="mobile-card-subtitle">Joined: ${formatDate(u.createdAt)}</div>
+          mobileContainer.innerHTML = users.length
+            ? users
+                .map((u) => {
+                  const initials = (u.name || u.email || "?")[0].toUpperCase();
+                  const displayName =
+                    u.name || u.email?.split("@")[0] || "Unknown";
+                  return `
+              <div class="mobile-card">
+                <div class="mobile-card-header">
+                  <div style="display:flex;align-items:center;gap:12px">
+                    ${
+                      u.avatar
+                        ? `<img src="${u.avatar}" style="width:48px;height:48px;border-radius:50%;object-fit:cover;flex-shrink:0;" alt="${displayName}"/>`
+                        : `<div class="avatar" style="width:48px;height:48px;font-size:18px;flex-shrink:0">${initials}</div>`
+                    }
+                    <div>
+                      <div class="mobile-card-title">${displayName}</div>
+                      <div class="mobile-card-subtitle">${u.email || "No email"}</div>
+                    </div>
                   </div>
                 </div>
-                <button class="mobile-card-menu-btn" onclick="event.stopPropagation(); toggleUserMenu(this, '${u.id}')">⋯</button>
-              </div>
-              <div class="mobile-card-content">
-                <div class="mobile-card-field">
-                  <div class="mobile-card-field-label">Email</div>
-                  <div class="mobile-card-field-value">${u.email || "—"}</div>
+                <div class="mobile-card-content">
+                  <div class="mobile-card-field"><div class="mobile-card-field-label">Phone</div><div class="mobile-card-field-value">${u.phone || "—"}</div></div>
+                  <div class="mobile-card-field"><div class="mobile-card-field-label">Orders</div><div class="mobile-card-field-value">${u.orderCount || 0}</div></div>
+                  <div class="mobile-card-field"><div class="mobile-card-field-label">Total Spent</div><div class="mobile-card-field-value">KES ${(u.totalSpent || 0).toLocaleString()}</div></div>
+                  <div class="mobile-card-field"><div class="mobile-card-field-label">Member Since</div><div class="mobile-card-field-value">${formatDate(u.createdAt)}</div></div>
                 </div>
-                <div class="mobile-card-field">
-                  <div class="mobile-card-field-label">Phone</div>
-                  <div class="mobile-card-field-value">${u.phone || "—"}</div>
-                </div>
-                <div class="mobile-card-field">
-                  <div class="mobile-card-field-label">Orders</div>
-                  <div class="mobile-card-field-value">${u.ordersCount || 0}</div>
-                </div>
-                <div class="mobile-card-field">
-                  <div class="mobile-card-field-label">Total Spent</div>
-                  <div class="mobile-card-field-value">KES ${(u.totalSpent || 0).toLocaleString()}</div>
-                </div>
-              </div>
-              <div class="mobile-card-menu" id="menu-user-${u.id}">
-                <button class="mobile-card-menu-item" onclick="event.stopPropagation()">View Profile</button>
-              </div>
-            </div>`,
-            )
-            .join("");
+              </div>`;
+                })
+                .join("")
+            : `<div class="empty-note">No customers found.</div>`;
         }
       }
 
@@ -1344,165 +1505,188 @@
         renderUsersTable(
           allUsers.filter(
             (u) =>
+              !q ||
               u.name?.toLowerCase().includes(q) ||
               u.email?.toLowerCase().includes(q),
           ),
         );
       };
 
+      window.viewUser = async (id) => {
+        // Show user detail in a simple modal or navigate to orders filtered by user
+        showToast("User profile coming soon.");
+      };
+
       // ── OFFERS ──────────────────────────────────────────────────────────────
       async function loadOffers() {
-        const snap = await getDocs(
-          query(collection(db, "offers"), orderBy("createdAt", "desc")),
-        );
-        allOffers = snap.docs.map((d) => ({ id: d.id, ...d.data() }));
-        renderOffersTable(allOffers);
+        try {
+          const snap = await getDocs(
+            query(collection(db, "offers"), orderBy("createdAt", "desc")),
+          );
+          allOffers = snap.docs.map((d) => ({ id: d.id, ...d.data() }));
+          renderOffersTable(allOffers);
+        } catch (e) {
+          console.error(e);
+        }
       }
 
       function renderOffersTable(offers) {
         const tbody = document.getElementById("offers-table-body");
-        tbody.innerHTML = offers
-          .map(
-            (o) => `
-          <tr>
-            <td><img src="${o.image || "https://placehold.co/40x40?text=?"}" class="prod-thumb" alt="${o.name}"/></td>
-            <td><strong>${o.name}</strong></td>
-            <td>KES ${(o.price || 0).toLocaleString()}</td>
-            <td>${o.discount || "—"}%</td>
-            <td>
-              <button class="table-action" onclick="openOfferModal('${o.id}')">Edit</button>
-              <button class="table-action danger" onclick="deleteOffer('${o.id}')">Delete</button>
-            </td>
-          </tr>`,
-          )
-          .join("");
+        if (!tbody) return;
+        tbody.innerHTML = offers.length
+          ? offers
+              .map(
+                (o) => `
+              <tr>
+                <td><strong>${o.title}</strong></td>
+                <td>${o.description}</td>
+                <td>${formatDate(o.startDate)}</td>
+                <td>${formatDate(o.endDate)}</td>
+                <td><span class="badge badge-${o.active ? "green" : "gray"}">${o.active ? "Active" : "Inactive"}</span></td>
+                <td>
+                  <button class="table-action" onclick="openOfferModal('${o.id}')">Edit</button>
+                  <button class="table-action danger" onclick="deleteOffer('${o.id}')">Delete</button>
+                </td>
+              </tr>`,
+              )
+              .join("")
+          : `<tr><td colspan="6" class="empty-note">No offers yet.</td></tr>`;
       }
 
-      window.openOfferModal = async (id = null) => {
-        editingOfferId = id;
-        const modal = document.getElementById("offer-modal");
-        const form = document.getElementById("offer-form");
-        form.reset();
-
-        if (id) {
-          const snap = await getDoc(doc(db, "offers", id));
-          const o = { id: snap.id, ...snap.data() };
-          form["offer-name"].value = o.name || "";
-          form["offer-price"].value = o.price || "";
-          form["offer-discount"].value = o.discount || "";
-          form["offer-image"].value = o.image || "";
-        }
-        modal.classList.add("open");
-      };
-
-      window.closeOfferModal = () => {
-        document.getElementById("offer-modal").classList.remove("open");
-        editingOfferId = null;
-      };
-
-      window.saveOffer = async () => {
-        const form = document.getElementById("offer-form");
-        const data = {
-          name: form["offer-name"].value.trim(),
-          price: parseFloat(form["offer-price"].value) || 0,
-          discount: parseInt(form["offer-discount"].value) || 0,
-          image: form["offer-image"].value.trim(),
-          updatedAt: Timestamp.now(),
-        };
-
-        if (!data.name) {
-          showToast("Offer name is required.", "error");
-          return;
-        }
-
-        try {
-          if (editingOfferId) {
-            await updateDoc(doc(db, "offers", editingOfferId), data);
-            showToast("Offer updated.");
-          } else {
-            data.createdAt = Timestamp.now();
-            await addDoc(collection(db, "offers"), data);
-            showToast("Offer added.");
-          }
-          closeOfferModal();
-          loadOffers();
-        } catch (e) {
-          showToast("Error: " + e.message, "error");
-        }
-      };
-
-      window.deleteOffer = async (id) => {
-        if (!confirm("Delete this offer?")) return;
-        try {
-          await deleteDoc(doc(db, "offers", id));
-          showToast("Offer deleted.");
-          loadOffers();
-        } catch (e) {
-          showToast("Error: " + e.message, "error");
-        }
-      };
-
-      // ── MESSAGES ─────────────────────────────────────────────────────────────
+      // ── MESSAGES — WhatsApp-style chat ───────────────────────────────────────
       async function loadMessages() {
-        const snap = await getDocs(
-          query(collection(db, "messages"), orderBy("createdAt", "desc")),
-        );
-        allMessages = snap.docs.map((d) => ({ id: d.id, ...d.data() }));
-        renderMessages(allMessages);
+        const listPane = document.getElementById("chat-list-pane");
+        if (listPane) showSkeletonLoader("chat-list-pane", "msgs");
+        try {
+          const snap = await getDocs(
+            query(collection(db, "messages"), orderBy("createdAt", "desc")),
+          );
+          allMessages = snap.docs.map((d) => ({ id: d.id, ...d.data() }));
+          renderChatList(allMessages);
+          // If a chat was previously open, reselect it
+          if (activeMessageId) openChat(activeMessageId);
+        } catch (e) {
+          console.error(e);
+        }
       }
 
-      function renderMessages(msgs) {
-        const container = document.getElementById("messages-list");
+      function renderChatList(msgs) {
+        const container = document.getElementById("chat-list-pane");
+        if (!container) return;
         container.innerHTML = msgs.length
           ? msgs
               .map(
                 (m) => `
-            <div class="msg-card ${m.read ? "" : "unread"}" onclick="openMessage('${m.id}')">
-              <div class="msg-avatar">${(m.name || "?")[0].toUpperCase()}</div>
-              <div class="msg-content">
-                <div class="msg-meta">
-                  <strong>${m.name || "Anonymous"}</strong>
-                  <span>${formatDate(m.createdAt)}</span>
-                </div>
-                <div class="msg-subject">${m.subject || "(No subject)"}</div>
-                <div class="msg-preview">${(m.message || "").slice(0, 100)}…</div>
+          <div class="chat-list-item ${m.id === activeMessageId ? "active" : ""} ${!m.read ? "unread" : ""}" onclick="openChat('${m.id}')">
+            <div class="chat-list-avatar">${(m.name || "?")[0].toUpperCase()}</div>
+            <div class="chat-list-info">
+              <div class="chat-list-header">
+                <span class="chat-list-name">${m.name || "Anonymous"}</span>
+                <span class="chat-list-time">${formatTimeShort(m.createdAt)}</span>
               </div>
-              ${!m.read ? `<div class="unread-dot"></div>` : ""}
-            </div>`,
+              <div class="chat-list-preview">${m.subject ? `<span class="chat-list-subject">${m.subject}</span>` : ""}${(m.message || "").slice(0, 50)}…</div>
+            </div>
+            ${!m.read ? `<div class="chat-unread-dot"></div>` : ""}
+          </div>`,
               )
               .join("")
-          : `<p class="empty-note">No messages yet.</p>`;
+          : `<div class="chat-empty-list"><p>No messages yet</p></div>`;
       }
 
-      window.openMessage = async (id) => {
+      window.openChat = async (id) => {
+        activeMessageId = id;
+        // Highlight selected
+        document
+          .querySelectorAll(".chat-list-item")
+          .forEach((el) => el.classList.remove("active"));
+        document
+          .querySelector(`.chat-list-item[onclick="openChat('${id}')"]`)
+          ?.classList.add("active");
+
+        // On mobile, show the chat pane
+        const chatPane = document.getElementById("chat-main-pane");
+        const listPane = document.getElementById("chat-list-pane");
+        if (window.innerWidth < 700) {
+          listPane.style.display = "none";
+          chatPane.style.display = "flex";
+        }
+
         const snap = await getDoc(doc(db, "messages", id));
         const m = { id: snap.id, ...snap.data() };
-        const modal = document.getElementById("msg-modal");
-        document.getElementById("msg-modal-body").innerHTML = `
-          <div class="msg-detail-header">
-            <div class="msg-avatar large">${(m.name || "?")[0].toUpperCase()}</div>
+
+        // Update header
+        document.getElementById("chat-header-name").textContent =
+          m.name || "Anonymous";
+        document.getElementById("chat-header-sub").textContent = m.email || "";
+        document.getElementById("chat-header-avatar").textContent = (m.name ||
+          "?")[0].toUpperCase();
+        document.getElementById("chat-empty-state").style.display = "none";
+        document.getElementById("chat-messages-area").style.display = "flex";
+        document.getElementById("chat-reply-bar").style.display = "flex";
+
+        // Render the message bubble thread
+        const msgArea = document.getElementById("chat-messages-area");
+        msgArea.innerHTML = `
+          <div class="chat-date-divider"><span>${formatDate(m.createdAt)}</span></div>
+          <div class="chat-bubble-row incoming">
+            <div class="chat-bubble-avatar">${(m.name || "?")[0].toUpperCase()}</div>
             <div>
-              <h3>${m.name || "Anonymous"}</h3>
-              <small>${m.email || ""} · ${formatDate(m.createdAt)}</small>
+              ${m.subject ? `<div class="chat-bubble-subject">${m.subject}</div>` : ""}
+              <div class="chat-bubble incoming">
+                <p>${m.message || ""}</p>
+                <span class="chat-bubble-time">${formatTimeShort(m.createdAt)}</span>
+              </div>
             </div>
           </div>
-          <h4 style="margin:16px 0 8px">${m.subject || "(No subject)"}</h4>
-          <p style="line-height:1.7;color:#4a3f3a">${m.message || ""}</p>
-          ${m.email ? `<a href="mailto:${m.email}?subject=Re: ${m.subject}" class="btn-primary" style="margin-top:20px;display:inline-flex">Reply via Email</a>` : ""}
+          ${
+            m.adminReply
+              ? `
+          <div class="chat-bubble-row outgoing">
+            <div class="chat-bubble outgoing">
+              <p>${m.adminReply}</p>
+              <span class="chat-bubble-time">${formatTimeShort(m.adminReplyAt)} ✓✓</span>
+            </div>
+          </div>`
+              : ""
+          }
         `;
+        msgArea.scrollTop = msgArea.scrollHeight;
+
+        // Mark as read
         if (!m.read) {
           await updateDoc(doc(db, "messages", id), { read: true });
+          // Update in-memory
+          const idx = allMessages.findIndex((msg) => msg.id === id);
+          if (idx !== -1) allMessages[idx].read = true;
+          // Remove unread dot from list item
+          document
+            .querySelector(`.chat-list-item[onclick="openChat('${id}')"]`)
+            ?.classList.remove("unread");
+          const dot = document.querySelector(
+            `.chat-list-item[onclick="openChat('${id}')"] .chat-unread-dot`,
+          );
+          if (dot) dot.remove();
+          // Update badge count
+          const unread = allMessages.filter((msg) => !msg.read).length;
+          document.getElementById("msg-badge").textContent = unread;
+          document.getElementById("msg-badge").style.display = unread
+            ? "flex"
+            : "none";
         }
-        modal.classList.add("open");
       };
 
-      window.closeMsgModal = () =>
-        document.getElementById("msg-modal").classList.remove("open");
+      window.backToList = () => {
+        activeMessageId = null;
+        const chatPane = document.getElementById("chat-main-pane");
+        const listPane = document.getElementById("chat-list-pane");
+        listPane.style.display = "flex";
+        chatPane.style.display = "none";
+      };
 
       window.filterMessages = () => {
         const q = document.getElementById("msg-search").value.toLowerCase();
         const filter = document.getElementById("msg-filter").value;
-        renderMessages(
+        renderChatList(
           allMessages.filter(
             (m) =>
               (!q ||
@@ -1577,6 +1761,27 @@
         });
       }
 
+      function formatTimeShort(timestamp) {
+        if (!timestamp) return "";
+        const date = new Date(
+          timestamp.seconds ? timestamp.seconds * 1000 : timestamp,
+        );
+        const now = new Date();
+        const diffDays = Math.floor((now - date) / 86400000);
+        if (diffDays === 0)
+          return date.toLocaleTimeString("en-US", {
+            hour: "2-digit",
+            minute: "2-digit",
+          });
+        if (diffDays === 1) return "Yesterday";
+        if (diffDays < 7)
+          return date.toLocaleDateString("en-US", { weekday: "short" });
+        return date.toLocaleDateString("en-US", {
+          month: "short",
+          day: "numeric",
+        });
+      }
+
       function statusColor(status) {
         const map = {
           pending: "orange",
@@ -1590,7 +1795,7 @@
       }
 
       function capitalize(str) {
-        return str.charAt(0).toUpperCase() + str.slice(1);
+        return str ? str.charAt(0).toUpperCase() + str.slice(1) : "";
       }
 
       function showToast(msg, type = "success") {
@@ -1601,23 +1806,25 @@
         setTimeout(() => toast.remove(), 3000);
       }
 
-      window.toggleOrderMenu = (btn, id) => {
-        const menu = document.getElementById(`menu-order-${id}`);
-        menu.classList.toggle("show");
-      };
-
-      window.toggleUserMenu = (btn, id) => {
-        const menu = document.getElementById(`menu-user-${id}`);
-        menu.classList.toggle("show");
-      };
-
-      // Resize handler to redraw charts when window size changes
       let resizeTimer;
       window.addEventListener("resize", () => {
         clearTimeout(resizeTimer);
         resizeTimer = setTimeout(() => {
           if (currentSection === "dashboard") loadDashboard();
-          if (currentSection === "analytics") loadAnalytics();
+          if (currentSection === "analytics") {
+            drawDailyRevenueChart(allOrders);
+            drawDailyOrdersChart(allOrders);
+            drawCategoryChart(allProducts, allOrders);
+          }
+          // Handle chat pane visibility on resize
+          if (currentSection === "messages") {
+            const chatPane = document.getElementById("chat-main-pane");
+            const listPane = document.getElementById("chat-list-pane");
+            if (window.innerWidth >= 700) {
+              listPane.style.display = "flex";
+              chatPane.style.display = "flex";
+            }
+          }
         }, 250);
       });
 
@@ -1654,7 +1861,160 @@
         color: var(--dark);
       }
 
-      /* ── LOGIN ────────────────────────────────────────────────── */
+      /* ── SKELETON LOADERS ──────────────────────────────────────── */
+      .skeleton-wrap {
+        padding: 8px 0;
+      }
+
+      @keyframes shimmer {
+        0% {
+          background-position: 200% 0;
+        }
+        100% {
+          background-position: -200% 0;
+        }
+      }
+      .skel {
+        background: linear-gradient(
+          90deg,
+          #ede5dc 25%,
+          #f8f1ea 50%,
+          #ede5dc 75%
+        );
+        background-size: 200% 100%;
+        animation: shimmer 1.6s infinite;
+        border-radius: 6px;
+      }
+      /* Chart skeleton */
+      .skeleton-chart-yaxis {
+        display: flex;
+        flex-direction: column-reverse;
+        justify-content: space-between;
+        padding: 16px 0;
+        height: 180px;
+        width: 44px;
+        float: left;
+      }
+      .skeleton-chart-area {
+        overflow: hidden;
+        padding: 16px 16px 8px;
+      }
+      .skeleton-line-track {
+        height: 140px;
+        background: #f0e8e0;
+        border-radius: 8px;
+        position: relative;
+        overflow: hidden;
+      }
+      .skeleton-line-fill {
+        position: absolute;
+        bottom: 0;
+        left: 0;
+        right: 0;
+        height: 60%;
+        background: linear-gradient(
+          90deg,
+          #e0d4c8 25%,
+          #ecddd3 50%,
+          #e0d4c8 75%
+        );
+        background-size: 200% 100%;
+        animation: shimmer 1.6s infinite;
+        clip-path: polygon(
+          0% 40%,
+          10% 30%,
+          20% 50%,
+          30% 20%,
+          45% 35%,
+          60% 10%,
+          75% 25%,
+          88% 15%,
+          100% 30%,
+          100% 100%,
+          0% 100%
+        );
+      }
+      .skeleton-xaxis {
+        display: flex;
+        justify-content: space-between;
+        padding: 8px 4px 0;
+      }
+      .skel-label {
+        width: 32px;
+        height: 10px;
+      }
+      .skel-xlabel {
+        width: 28px;
+        height: 10px;
+      }
+      /* Table skeleton */
+      .skeleton-row {
+        display: flex;
+        align-items: center;
+        gap: 12px;
+        padding: 12px 16px;
+        border-bottom: 1px solid #f0e8e0;
+      }
+      .skel-thumb {
+        width: 40px;
+        height: 40px;
+        border-radius: 8px;
+        flex-shrink: 0;
+      }
+      .skeleton-row-text {
+        flex: 1;
+      }
+      .skel-text-lg {
+        height: 14px;
+        margin-bottom: 8px;
+        width: 70%;
+      }
+      .skel-text-sm {
+        height: 11px;
+        width: 50%;
+      }
+      .skel-badge {
+        width: 60px;
+        height: 22px;
+        border-radius: 20px;
+      }
+      .skel-btn {
+        width: 56px;
+        height: 30px;
+        border-radius: 8px;
+      }
+      /* Product card skeleton */
+      .skeleton-product-card {
+        display: flex;
+        align-items: center;
+        gap: 12px;
+        padding: 12px 16px;
+        border-bottom: 1px solid #f0e8e0;
+      }
+      .skel-product-img {
+        width: 60px;
+        height: 60px;
+        border-radius: 10px;
+        flex-shrink: 0;
+      }
+      .skeleton-product-info {
+        flex: 1;
+      }
+      /* Message skeleton */
+      .skeleton-msg {
+        display: flex;
+        gap: 12px;
+        padding: 12px 16px;
+        border-bottom: 1px solid #f0e8e0;
+      }
+      .skel-avatar {
+        width: 44px;
+        height: 44px;
+        border-radius: 50%;
+        flex-shrink: 0;
+      }
+
+      /* ── LOGIN ──────────────────────────────────────────────────── */
       #login-screen {
         display: flex;
         align-items: center;
@@ -1662,7 +2022,6 @@
         min-height: 100vh;
         background: linear-gradient(135deg, #fdf5ef 0%, #f5ede5 100%);
       }
-
       .login-card {
         background: white;
         border-radius: 20px;
@@ -1672,7 +2031,6 @@
         box-shadow: 0 10px 40px rgba(44, 38, 36, 0.08);
         border: 1px solid var(--border);
       }
-
       .login-logo {
         display: flex;
         align-items: center;
@@ -1682,17 +2040,14 @@
         font-weight: 600;
         margin-bottom: 8px;
       }
-
       .login-logo span {
         color: var(--primary);
       }
-
       .login-sub {
         font-size: 14px;
         color: #8a7a73;
         margin-bottom: 24px;
       }
-
       .login-label {
         display: block;
         font-size: 13px;
@@ -1701,7 +2056,6 @@
         margin-bottom: 6px;
         margin-top: 16px;
       }
-
       .login-input {
         width: 100%;
         padding: 10px 14px;
@@ -1712,18 +2066,15 @@
         outline: none;
         transition: border-color 200ms;
       }
-
       .login-input:focus {
         border-color: var(--primary);
       }
-
       #login-error {
         color: #c0392b;
         font-size: 12px;
         margin-top: 8px;
         margin-bottom: 16px;
       }
-
       .login-btn {
         width: 100%;
         padding: 12px;
@@ -1737,19 +2088,18 @@
         margin-top: 24px;
         transition: background 200ms;
       }
-
       .login-btn:hover {
         background: var(--primary-dark);
       }
 
-      /* ── APP LAYOUT ────────────────────────────────────────────── */
+      /* ── APP LAYOUT ─────────────────────────────────────────────── */
       #app {
         display: flex;
         height: 100vh;
         background: #faf8f5;
       }
 
-      /* ── SIDEBAR ───────────────────────────────────────────────── */
+      /* ── SIDEBAR ─────────────────────────────────────────────────── */
       #sidebar {
         width: var(--sidebar-w);
         background: white;
@@ -1763,7 +2113,6 @@
         z-index: 200;
         transition: transform 300ms cubic-bezier(0.23, 1, 0.32, 1);
       }
-
       .sidebar-logo {
         padding: 20px 20px 16px;
         font-family: "Fraunces", serif;
@@ -1775,7 +2124,6 @@
         gap: 10px;
         border-bottom: 1px solid var(--border);
       }
-
       .sidebar-logo .dot {
         width: 28px;
         height: 28px;
@@ -1785,14 +2133,12 @@
         align-items: center;
         justify-content: center;
       }
-
       .sidebar-logo .dot svg {
         width: 16px;
         height: 16px;
         stroke: white;
         fill: none;
       }
-
       .sidebar-section-label {
         padding: 16px 20px 6px;
         font-size: 10px;
@@ -1801,7 +2147,6 @@
         color: #b8a99c;
         text-transform: uppercase;
       }
-
       .nav-item {
         display: flex;
         align-items: center;
@@ -1820,18 +2165,15 @@
         width: calc(100% - 16px);
         text-align: left;
       }
-
       .nav-item:hover {
         background: var(--light);
         color: var(--dark);
       }
-
       .nav-item.active {
         background: #fef0ea;
         color: var(--primary);
         font-weight: 600;
       }
-
       .nav-item svg {
         width: 17px;
         height: 17px;
@@ -1839,7 +2181,6 @@
         fill: none;
         flex-shrink: 0;
       }
-
       .nav-badge {
         margin-left: auto;
         background: var(--primary);
@@ -1852,19 +2193,16 @@
         align-items: center;
         justify-content: center;
       }
-
       .sidebar-footer {
         margin-top: auto;
         padding: 16px 20px;
         border-top: 1px solid var(--border);
       }
-
       .admin-info {
         display: flex;
         align-items: center;
         gap: 10px;
       }
-
       .admin-avatar {
         width: 36px;
         height: 36px;
@@ -1878,7 +2216,6 @@
         font-size: 14px;
         flex-shrink: 0;
       }
-
       .admin-email {
         font-size: 12px;
         color: #6b5b52;
@@ -1887,74 +2224,58 @@
         white-space: nowrap;
         max-width: 140px;
       }
-
       .logout-btn {
         background: none;
         border: none;
         color: #b8a99c;
         cursor: pointer;
-        font-size: 12px;
-        font-family: inherit;
-        margin-top: 8px;
-        padding: 0;
-        display: flex;
-        align-items: center;
-        gap: 6px;
-        transition: color 200ms;
+        font-size: 18px;
+        padding: 4px;
+        transition: color 150ms;
       }
-
       .logout-btn:hover {
         color: var(--primary);
       }
-
-      /* ── OVERLAY ──────────────────────────────────────────────── */
       #sidebar-overlay {
         display: none;
         position: fixed;
         inset: 0;
-        background: rgba(44, 38, 36, 0.35);
-        z-index: 199;
+        background: rgba(0, 0, 0, 0.3);
+        z-index: 150;
       }
-
       #sidebar-overlay.show {
         display: block;
       }
 
-      /* ── MAIN AREA ────────────────────────────────────────────── */
+      /* ── MAIN ───────────────────────────────────────────────────── */
       #main {
+        flex: 1;
         margin-left: var(--sidebar-w);
         display: flex;
         flex-direction: column;
         height: 100vh;
-        overflow: hidden;
-        flex: 1;
       }
 
-      /* ── TOPBAR ───────────────────────────────────────────────── */
+      /* ── TOPBAR ─────────────────────────────────────────────────── */
       #topbar {
         background: white;
         border-bottom: 1px solid var(--border);
-        padding: 0 28px;
-        height: 60px;
+        padding: 16px 28px;
         display: flex;
         align-items: center;
         justify-content: space-between;
-        flex-shrink: 0;
-        gap: 16px;
+        height: 70px;
       }
-
       #topbar h1 {
         font-family: "Fraunces", serif;
         font-size: 20px;
         font-weight: 600;
       }
-
       .topbar-right {
         display: flex;
         align-items: center;
         gap: 12px;
       }
-
       .hamburger-btn {
         display: none;
         background: none;
@@ -1970,7 +2291,6 @@
         overflow-y: auto;
         padding: 28px;
       }
-
       .section {
         display: none;
       }
@@ -1983,7 +2303,6 @@
         margin-bottom: 24px;
         width: 100%;
       }
-
       .stat-card {
         background: white;
         border-radius: 14px;
@@ -1999,7 +2318,6 @@
         transform: translateY(-2px);
         box-shadow: 0 4px 12px rgba(0, 0, 0, 0.05);
       }
-
       .stat-card.orange {
         border-left: 4px solid var(--primary);
         background: linear-gradient(to right, #fff, #fef0ea);
@@ -2016,7 +2334,6 @@
         border-left: 4px solid #3b6fce;
         background: linear-gradient(to right, #fff, #e8f0fe);
       }
-
       .stat-label {
         font-size: 11px;
         font-weight: 700;
@@ -2025,7 +2342,6 @@
         letter-spacing: 0.5px;
         margin-bottom: 8px;
       }
-
       .stat-value {
         font-family: "Fraunces", serif;
         font-size: 26px;
@@ -2033,7 +2349,6 @@
         color: var(--dark);
         line-height: 1.2;
       }
-
       .stat-icon {
         position: absolute;
         right: 20px;
@@ -2046,12 +2361,10 @@
         align-items: center;
         justify-content: center;
       }
-
       .stat-icon svg {
         width: 20px;
         height: 20px;
       }
-
       .stat-icon.orange {
         background: var(--primary);
         color: white;
@@ -2069,7 +2382,7 @@
         color: white;
       }
 
-      /* ── DASHBOARD GRID ────────────────────────────────────────── */
+      /* ── DASHBOARD GRID ─────────────────────────────────────────── */
       .dashboard-grid {
         display: grid;
         grid-template-columns: 1fr 320px;
@@ -2078,7 +2391,6 @@
         max-width: 100%;
         overflow: hidden;
       }
-
       .card {
         background: white;
         border-radius: 14px;
@@ -2087,7 +2399,6 @@
         width: 100%;
         max-width: 100%;
       }
-
       .card-header {
         padding: 16px 20px;
         border-bottom: 1px solid var(--border);
@@ -2095,20 +2406,18 @@
         align-items: center;
         justify-content: space-between;
       }
-
       .card-title {
         font-family: "Fraunces", serif;
         font-size: 16px;
         font-weight: 600;
       }
 
-      /* ── TABLE ─────────────────────────────────────────────────── */
+      /* ── TABLE ──────────────────────────────────────────────────── */
       .data-table {
         width: 100%;
         border-collapse: collapse;
         font-size: 14px;
       }
-
       .data-table th {
         padding: 12px 16px;
         text-align: left;
@@ -2119,21 +2428,18 @@
         color: #b8a99c;
         border-bottom: 1px solid var(--border);
       }
-
       .data-table td {
         padding: 12px 16px;
         border-bottom: 1px solid var(--border);
       }
-
       .data-table tr:last-child td {
         border-bottom: none;
       }
-
       .data-table tr:hover td {
         background: #fdf5ef;
       }
 
-      /* ── BADGE ─────────────────────────────────────────────────── */
+      /* ── BADGE ──────────────────────────────────────────────────── */
       .badge {
         display: inline-block;
         padding: 3px 10px;
@@ -2142,7 +2448,6 @@
         font-weight: 600;
         text-transform: capitalize;
       }
-
       .badge-green {
         background: #e8f5ef;
         color: #1d7a4a;
@@ -2168,7 +2473,7 @@
         color: #6b5b52;
       }
 
-      /* ── TABLE ACTIONS ─────────────────────────────────────────── */
+      /* ── TABLE ACTIONS & BUTTONS ─────────────────────────────────── */
       .table-action {
         background: var(--light);
         border: 1px solid var(--border);
@@ -2182,7 +2487,6 @@
         transition: all 150ms;
         margin-right: 4px;
       }
-
       .table-action:hover {
         background: var(--border);
       }
@@ -2193,8 +2497,63 @@
         background: #fdecea;
         border-color: #f5c6c6;
       }
+      .view-btn {
+        background: #fef0ea;
+        border-color: #f5d5c5;
+        color: var(--primary);
+      }
+      .view-btn:hover {
+        background: #fde0ce;
+      }
 
-      /* ── LOW STOCK ─────────────────────────────────────────────── */
+      /* ── STATUS DROPDOWN ─────────────────────────────────────────── */
+      .status-dropdown {
+        padding: 4px 10px;
+        border-radius: 20px;
+        font-size: 12px;
+        font-weight: 600;
+        border: none;
+        cursor: pointer;
+        font-family: inherit;
+        outline: none;
+        appearance: none;
+        -webkit-appearance: none;
+        background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='10' height='6' viewBox='0 0 10 6'%3E%3Cpath d='M1 1l4 4 4-4' stroke='%238a7a73' stroke-width='1.5' fill='none' stroke-linecap='round'/%3E%3C/svg%3E");
+        background-repeat: no-repeat;
+        background-position: right 8px center;
+        padding-right: 24px;
+        transition: all 150ms;
+        min-width: 110px;
+      }
+      .status-dropdown.status-orange {
+        background-color: #fef7e8;
+        color: #c47c0a;
+      }
+      .status-dropdown.status-blue {
+        background-color: #e8f0fe;
+        color: #3b6fce;
+      }
+      .status-dropdown.status-teal {
+        background-color: #e8f5f5;
+        color: #177777;
+      }
+      .status-dropdown.status-green {
+        background-color: #e8f5ef;
+        color: #1d7a4a;
+      }
+      .status-dropdown.status-red {
+        background-color: #fdecea;
+        color: #c0392b;
+      }
+      .status-dropdown.status-gray {
+        background-color: #f0ebe6;
+        color: #6b5b52;
+      }
+      .status-dropdown:hover {
+        filter: brightness(0.95);
+      }
+
+      /* ── LOW STOCK ──────────────────────────────────────────────── */
       .low-stock-item {
         display: flex;
         align-items: center;
@@ -2202,34 +2561,29 @@
         padding: 12px 20px;
         border-bottom: 1px solid var(--border);
       }
-
       .low-stock-item:last-child {
         border-bottom: none;
       }
-
       .low-stock-item img {
         width: 40px;
         height: 40px;
         border-radius: 8px;
         object-fit: cover;
       }
-
       .low-stock-info {
         flex: 1;
       }
-
       .low-stock-name {
         font-size: 13px;
         font-weight: 600;
         display: block;
       }
-
       .low-stock-qty {
         font-size: 12px;
         color: #b8a99c;
       }
 
-      /* ── SECTION TOOLBAR ───────────────────────────────────────── */
+      /* ── SECTION TOOLBAR ─────────────────────────────────────────── */
       .section-toolbar {
         display: flex;
         gap: 12px;
@@ -2237,7 +2591,6 @@
         align-items: center;
         flex-wrap: wrap;
       }
-
       .toolbar-search {
         flex: 1;
         min-width: 200px;
@@ -2251,11 +2604,9 @@
         color: var(--dark);
         transition: border-color 200ms;
       }
-
       .toolbar-search:focus {
         border-color: var(--primary);
       }
-
       .toolbar-select {
         padding: 10px 14px;
         border: 1.5px solid var(--border);
@@ -2267,7 +2618,6 @@
         cursor: pointer;
         color: var(--dark);
       }
-
       .btn-primary {
         background: var(--primary);
         color: white;
@@ -2287,7 +2637,6 @@
         position: relative;
         min-width: 120px;
       }
-
       .btn-spinner {
         width: 18px;
         height: 18px;
@@ -2308,24 +2657,23 @@
       .btn-primary.loading .btn-text {
         display: none;
       }
-
       .btn-primary:hover {
         background: var(--primary-dark);
       }
 
-      /* ── PRODUCT THUMB ────────────────────────────────────────── */
+      /* ── PRODUCT THUMB ───────────────────────────────────────────── */
       .prod-thumb {
         width: 40px;
         height: 40px;
         border-radius: 8px;
         object-fit: cover;
       }
-
       .avatar {
         width: 32px;
         height: 32px;
         border-radius: 50%;
         background: var(--light);
+        border: 1px solid var(--border);
         display: flex;
         align-items: center;
         justify-content: center;
@@ -2333,16 +2681,14 @@
         font-weight: 600;
         color: var(--dark);
       }
-
-      /* ── EMPTY NOTE ────────────────────────────────────────────── */
       .empty-note {
-        padding: 20px;
+        padding: 32px 20px;
         text-align: center;
         color: #b8a99c;
         font-size: 13px;
       }
 
-      /* ── TOAST ─────────────────────────────────────────────────── */
+      /* ── TOAST ──────────────────────────────────────────────────── */
       .toast {
         position: fixed;
         bottom: 20px;
@@ -2354,7 +2700,6 @@
         z-index: 9999;
         animation: slideIn 300ms ease-out;
       }
-
       @keyframes slideIn {
         from {
           transform: translateX(400px);
@@ -2365,18 +2710,16 @@
           opacity: 1;
         }
       }
-
       .toast-success {
         background: #e8f5ef;
         color: #1d7a4a;
       }
-
       .toast-error {
         background: #fdecea;
         color: #c0392b;
       }
 
-      /* ── ANALYTICS SECTION ─────────────────────────────────────── */
+      /* ── ANALYTICS SECTION ───────────────────────────────────────── */
       .analytics-grid {
         display: grid;
         grid-template-columns: 1fr 1fr;
@@ -2384,50 +2727,49 @@
         margin-bottom: 20px;
         width: 100%;
       }
-
       .analytics-card {
         background: white;
         border-radius: 14px;
         border: 1px solid var(--border);
         padding: 20px;
+        min-width: 0;
+        overflow: hidden;
       }
-
       .analytics-card-title {
         font-family: "Fraunces", serif;
-        font-size: 16px;
+        font-size: 15px;
         font-weight: 600;
         margin-bottom: 16px;
         color: var(--dark);
       }
-
-      .analytics-chart {
+      .analytics-chart-wrap {
         width: 100%;
-        height: 250px;
+        overflow: hidden;
+      }
+      .analytics-chart {
         display: block;
+        max-width: 100%;
       }
 
-      /* ── TOP PRODUCTS ──────────────────────────────────────────── */
+      /* ── TOP PRODUCTS ────────────────────────────────────────────── */
       .top-products-card {
         background: white;
         border-radius: 14px;
         border: 1px solid var(--border);
         padding: 20px;
       }
-
       .top-products-title {
         font-family: "Fraunces", serif;
-        font-size: 16px;
+        font-size: 15px;
         font-weight: 600;
         margin-bottom: 16px;
         color: var(--dark);
       }
-
       #top-products-list {
         display: flex;
         flex-direction: column;
         gap: 12px;
       }
-
       .top-product-item {
         display: flex;
         align-items: center;
@@ -2437,28 +2779,20 @@
         border-radius: 10px;
         transition: all 150ms;
       }
-
       .top-product-item:hover {
         background: var(--light);
         border-color: var(--primary);
       }
-
-      .top-product-image {
-        flex-shrink: 0;
-      }
-
       .top-product-image img {
-        width: 60px;
-        height: 60px;
+        width: 56px;
+        height: 56px;
         border-radius: 8px;
         object-fit: cover;
       }
-
       .top-product-info {
         flex: 1;
         min-width: 0;
       }
-
       .top-product-name {
         font-size: 13px;
         font-weight: 600;
@@ -2468,28 +2802,19 @@
         overflow: hidden;
         text-overflow: ellipsis;
       }
-
       .top-product-meta {
         display: flex;
         gap: 12px;
         font-size: 12px;
         color: #b8a99c;
+        flex-wrap: wrap;
       }
-
-      .top-product-sales {
-        font-weight: 600;
-      }
-
       .top-product-revenue {
         font-weight: 600;
         color: var(--primary);
       }
 
-      .top-product-status {
-        flex-shrink: 0;
-      }
-
-      /* ── MODAL ─────────────────────────────────────────────────── */
+      /* ── MODAL ──────────────────────────────────────────────────── */
       .modal {
         display: none;
         position: fixed;
@@ -2499,11 +2824,9 @@
         align-items: center;
         justify-content: center;
       }
-
       .modal.open {
         display: flex;
       }
-
       .modal-content {
         background: white;
         border-radius: 14px;
@@ -2512,7 +2835,6 @@
         max-height: 90vh;
         overflow-y: auto;
       }
-
       .modal-header {
         padding: 20px;
         border-bottom: 1px solid var(--border);
@@ -2520,13 +2842,11 @@
         align-items: center;
         justify-content: space-between;
       }
-
       .modal-title {
         font-family: "Fraunces", serif;
         font-size: 18px;
         font-weight: 600;
       }
-
       .modal-close {
         background: none;
         border: none;
@@ -2534,31 +2854,27 @@
         cursor: pointer;
         color: #b8a99c;
       }
-
       .modal-body {
         padding: 20px;
       }
 
-      /* ── FORM ──────────────────────────────────────────────────── */
+      /* ── FORM ───────────────────────────────────────────────────── */
       .form-row {
         display: grid;
         grid-template-columns: 1fr 1fr;
         gap: 16px;
         margin-bottom: 16px;
       }
-
       .form-group {
         display: flex;
         flex-direction: column;
       }
-
       .form-label {
         font-size: 13px;
         font-weight: 600;
         color: var(--dark);
         margin-bottom: 6px;
       }
-
       .form-input,
       .form-select,
       .form-textarea {
@@ -2572,18 +2888,15 @@
         color: var(--dark);
         transition: border-color 200ms;
       }
-
       .form-input:focus,
       .form-select:focus,
       .form-textarea:focus {
         border-color: var(--primary);
       }
-
       .form-textarea {
         resize: vertical;
         min-height: 100px;
       }
-
       .form-check {
         display: flex;
         align-items: center;
@@ -2591,118 +2904,14 @@
         font-size: 13px;
         cursor: pointer;
       }
-
       .form-check input {
         cursor: pointer;
       }
 
-      /* ── MESSAGE CARDS ─────────────────────────────────────────── */
-      .msg-card {
-        display: flex;
-        align-items: center;
-        gap: 12px;
-        padding: 12px 16px;
-        border-bottom: 1px solid var(--border);
-        cursor: pointer;
-        transition: background 150ms;
-        position: relative;
-      }
-
-      .msg-card:hover {
-        background: var(--light);
-      }
-
-      .msg-card.unread {
-        background: #fef0ea;
-      }
-
-      .msg-avatar {
-        width: 40px;
-        height: 40px;
-        border-radius: 50%;
-        background: var(--primary);
-        color: white;
-        display: flex;
-        align-items: center;
-        justify-content: center;
-        font-weight: 700;
-        flex-shrink: 0;
-      }
-
-      .msg-avatar.large {
-        width: 60px;
-        height: 60px;
-        font-size: 24px;
-      }
-
-      .msg-content {
-        flex: 1;
-        min-width: 0;
-      }
-
-      .msg-meta {
-        display: flex;
-        align-items: center;
-        justify-content: space-between;
-        margin-bottom: 4px;
-      }
-
-      .msg-meta strong {
-        font-size: 13px;
-      }
-
-      .msg-meta span {
-        font-size: 12px;
-        color: #b8a99c;
-      }
-
-      .msg-subject {
-        font-size: 13px;
-        font-weight: 600;
-        color: var(--dark);
-        margin-bottom: 4px;
-      }
-
-      .msg-preview {
-        font-size: 12px;
-        color: #8a7a73;
-        white-space: nowrap;
-        overflow: hidden;
-        text-overflow: ellipsis;
-      }
-
-      .msg-detail-header {
-        display: flex;
-        align-items: center;
-        gap: 16px;
-        padding-bottom: 16px;
-        border-bottom: 1px solid var(--border);
-        margin-bottom: 16px;
-      }
-
-      .msg-detail-header h3 {
-        font-size: 16px;
-        margin-bottom: 4px;
-      }
-
-      .msg-detail-header small {
-        font-size: 12px;
-        color: #b8a99c;
-      }
-
-      .unread-dot {
-        width: 8px;
-        height: 8px;
-        background: var(--primary);
-        border-radius: 50%;
-        flex-shrink: 0;
-      }
-
-      /* ── SETTINGS ──────────────────────────────────────────────── */
+      /* ── SETTINGS ───────────────────────────────────────────────── */
       .settings-section {
         margin-bottom: 32px;
       }
-
       .settings-section-title {
         font-family: "Fraunces", serif;
         font-size: 16px;
@@ -2711,13 +2920,12 @@
         color: var(--dark);
       }
 
-      /* ── MOBILE CARDS ──────────────────────────────────────────── */
+      /* ── MOBILE ORDER CARDS ──────────────────────────────────────── */
       .mobile-cards-container {
         display: none;
         flex-direction: column;
         gap: 12px;
       }
-
       .mobile-card {
         background: white;
         border: 1px solid var(--border);
@@ -2725,90 +2933,31 @@
         padding: 16px;
         position: relative;
       }
-
       .mobile-card-header {
         display: flex;
         align-items: center;
         justify-content: space-between;
         margin-bottom: 12px;
       }
-
       .mobile-card-title {
         font-size: 14px;
         font-weight: 600;
         color: var(--dark);
       }
-
       .mobile-card-subtitle {
         font-size: 12px;
         color: #b8a99c;
       }
-
-      .mobile-card-menu-btn {
-        background: none;
-        border: none;
-        font-size: 18px;
-        cursor: pointer;
-        color: #b8a99c;
-        padding: 0;
-      }
-
-      .mobile-card-menu {
-        display: none;
-        position: absolute;
-        top: 40px;
-        right: 16px;
-        background: white;
-        border: 1px solid var(--border);
-        border-radius: 10px;
-        overflow: hidden;
-        z-index: 100;
-        min-width: 150px;
-      }
-
-      .mobile-card-menu.show {
-        display: block;
-      }
-
-      .mobile-card-menu-item {
-        display: block;
-        width: 100%;
-        padding: 10px 16px;
-        border: none;
-        background: none;
-        text-align: left;
-        font-size: 13px;
-        font-weight: 600;
-        color: var(--dark);
-        cursor: pointer;
-        border-bottom: 1px solid var(--border);
-        font-family: inherit;
-      }
-
-      .mobile-card-menu-item:last-child {
-        border-bottom: none;
-      }
-
-      .mobile-card-menu-item:active {
-        background: var(--light);
-      }
-
-      .mobile-card-menu-item.danger {
-        color: #c0392b;
-      }
-
       .mobile-card-content {
         display: grid;
         grid-template-columns: 1fr 1fr;
         gap: 12px;
         font-size: 13px;
       }
-
       .mobile-card-field {
         display: flex;
         flex-direction: column;
       }
-
       .mobile-card-field-label {
         font-size: 11px;
         color: #b8a99c;
@@ -2817,56 +2966,186 @@
         letter-spacing: 0.5px;
         margin-bottom: 4px;
       }
-
       .mobile-card-field-value {
         color: var(--dark);
         font-weight: 500;
       }
 
-      .mobile-card-image {
-        width: 60px;
-        height: 60px;
-        border-radius: 8px;
-        object-fit: cover;
+      /* ── MOBILE ORDER CARDS (new enhanced) ──────────────────────── */
+      .mobile-order-card {
+        background: white;
         border: 1px solid var(--border);
+        border-radius: 14px;
+        overflow: hidden;
+        margin-bottom: 12px;
       }
-
-      .mobile-card-item {
+      .mobile-order-card-top {
         display: flex;
-        gap: 10px;
-        padding: 10px 0;
+        align-items: center;
+        justify-content: space-between;
+        padding: 14px 16px;
         border-bottom: 1px solid var(--border);
       }
-
-      .mobile-card-item:last-child {
+      .mobile-order-id {
+        font-weight: 700;
+        font-size: 14px;
+        color: var(--dark);
+      }
+      .mobile-order-customer {
+        font-size: 12px;
+        color: #8a7a73;
+        margin-top: 2px;
+      }
+      .mobile-order-items {
+        padding: 0 16px;
+      }
+      .mobile-order-item-row {
+        display: flex;
+        gap: 10px;
+        padding: 12px 0;
+        border-bottom: 1px solid #f5ede5;
+      }
+      .mobile-order-item-row:last-child {
         border-bottom: none;
       }
-
-      .mobile-card-item-image {
-        width: 50px;
-        height: 50px;
-        border-radius: 6px;
+      .mobile-order-item-img {
+        width: 46px;
+        height: 46px;
+        border-radius: 8px;
         object-fit: cover;
         flex-shrink: 0;
+        border: 1px solid var(--border);
       }
-
-      .mobile-card-item-info {
+      .mobile-order-item-info {
         flex: 1;
+        min-width: 0;
       }
-
-      .mobile-card-item-name {
+      .mobile-order-item-name {
         font-weight: 600;
         font-size: 13px;
         color: var(--dark);
       }
-
-      .mobile-card-item-price {
+      .mobile-order-item-vars {
+        display: flex;
+        gap: 6px;
+        margin: 4px 0;
+        flex-wrap: wrap;
+      }
+      .var-chip {
+        font-size: 11px;
+        font-weight: 600;
+        padding: 2px 8px;
+        border-radius: 12px;
+      }
+      .var-color {
+        background: #e8f0fe;
+        color: #3b6fce;
+      }
+      .var-size {
+        background: #fef7e8;
+        color: #c47c0a;
+      }
+      .mobile-order-item-price {
         font-size: 12px;
-        color: #b8a99c;
-        margin-top: 2px;
+        color: #8a7a73;
+      }
+      .mobile-order-meta {
+        padding: 12px 16px;
+        background: #fdf8f5;
+        border-top: 1px solid var(--border);
+        display: flex;
+        flex-direction: column;
+        gap: 6px;
+      }
+      .mobile-order-meta-row {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        font-size: 13px;
+      }
+      .mobile-order-meta-label {
+        color: #8a7a73;
+        font-size: 12px;
+      }
+      .mobile-order-total {
+        font-weight: 700;
+        color: var(--primary);
+        font-size: 15px;
+      }
+      .mobile-order-actions {
+        display: flex;
+        gap: 10px;
+        padding: 12px 16px;
+        border-top: 1px solid var(--border);
+        align-items: center;
+      }
+      .mobile-status-select {
+        flex: 1;
+        padding: 9px 28px 9px 12px;
+        border-radius: 10px;
+        font-size: 13px;
+        font-weight: 600;
+        border: 1.5px solid var(--border);
+        cursor: pointer;
+        font-family: inherit;
+        outline: none;
+        appearance: none;
+        -webkit-appearance: none;
+        background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='10' height='6' viewBox='0 0 10 6'%3E%3Cpath d='M1 1l4 4 4-4' stroke='%238a7a73' stroke-width='1.5' fill='none' stroke-linecap='round'/%3E%3C/svg%3E");
+        background-repeat: no-repeat;
+        background-position: right 10px center;
+      }
+      .mobile-status-select.status-orange {
+        background-color: #fef7e8;
+        color: #c47c0a;
+        border-color: #f5d98a;
+      }
+      .mobile-status-select.status-blue {
+        background-color: #e8f0fe;
+        color: #3b6fce;
+        border-color: #b8ccf8;
+      }
+      .mobile-status-select.status-teal {
+        background-color: #e8f5f5;
+        color: #177777;
+        border-color: #9dd4d4;
+      }
+      .mobile-status-select.status-green {
+        background-color: #e8f5ef;
+        color: #1d7a4a;
+        border-color: #96d4b2;
+      }
+      .mobile-status-select.status-red {
+        background-color: #fdecea;
+        color: #c0392b;
+        border-color: #f5b8b2;
+      }
+      .mobile-status-select.status-gray {
+        background-color: #f0ebe6;
+        color: #6b5b52;
+        border-color: #d4c8be;
+      }
+      .mobile-view-btn {
+        display: inline-flex;
+        align-items: center;
+        gap: 6px;
+        padding: 9px 16px;
+        background: var(--primary);
+        color: white;
+        border: none;
+        border-radius: 10px;
+        font-size: 13px;
+        font-weight: 600;
+        cursor: pointer;
+        font-family: inherit;
+        transition: background 200ms;
+        white-space: nowrap;
+      }
+      .mobile-view-btn:hover {
+        background: var(--primary-dark);
       }
 
-      /* ── ORDER DETAIL GRID ─────────────────────────────────────── */
+      /* ── ORDER DETAIL GRID ──────────────────────────────────────── */
       .order-detail-grid {
         display: grid;
         grid-template-columns: repeat(3, 1fr);
@@ -2875,11 +3154,9 @@
         padding-bottom: 16px;
         border-bottom: 1px solid var(--border);
       }
-
       .order-detail-grid div {
         font-size: 13px;
       }
-
       .order-detail-grid strong {
         display: block;
         font-size: 11px;
@@ -2890,27 +3167,24 @@
         margin-bottom: 6px;
       }
 
-      /* ── IMAGE PREVIEW ─────────────────────────────────────────── */
+      /* ── IMAGE PREVIEW ──────────────────────────────────────────── */
       #image-preview-list {
         display: grid;
         grid-template-columns: repeat(auto-fill, minmax(80px, 1fr));
         gap: 12px;
         margin-bottom: 16px;
       }
-
       .img-preview-item {
         position: relative;
         border-radius: 10px;
         overflow: hidden;
         border: 1px solid var(--border);
       }
-
       .img-preview-item img {
         width: 100%;
         height: 80px;
         object-fit: cover;
       }
-
       .img-preview-item button {
         position: absolute;
         top: 4px;
@@ -2928,13 +3202,440 @@
         font-size: 14px;
       }
 
-      /* ── RESPONSIVE ────────────────────────────────────────────── */
+      /* ══════════════════════════════════════════════════════════════
+         MESSAGES — WhatsApp-style chat layout
+      ══════════════════════════════════════════════════════════════ */
+      .chat-container {
+        display: flex;
+        height: calc(100vh - 70px - 56px);
+        border-radius: 14px;
+        border: 1px solid var(--border);
+        overflow: hidden;
+        background: white;
+      }
+
+      /* List pane */
+      .chat-list-pane {
+        width: 320px;
+        min-width: 280px;
+        flex-shrink: 0;
+        display: flex;
+        flex-direction: column;
+        border-right: 1px solid var(--border);
+      }
+      .chat-list-search {
+        padding: 12px;
+        border-bottom: 1px solid var(--border);
+      }
+      .chat-list-search input {
+        width: 100%;
+        padding: 9px 14px;
+        background: #f5ede5;
+        border: none;
+        border-radius: 10px;
+        font-size: 13px;
+        font-family: inherit;
+        outline: none;
+      }
+      .chat-list-filter {
+        padding: 8px 12px;
+        border-bottom: 1px solid var(--border);
+      }
+      .chat-list-filter select {
+        width: 100%;
+        padding: 6px 10px;
+        border: 1.5px solid var(--border);
+        border-radius: 8px;
+        font-size: 12px;
+        font-family: inherit;
+        outline: none;
+        color: var(--dark);
+      }
+      .chat-list-items {
+        flex: 1;
+        overflow-y: auto;
+      }
+
+      .chat-list-item {
+        display: flex;
+        align-items: center;
+        gap: 12px;
+        padding: 14px 14px;
+        cursor: pointer;
+        border-bottom: 1px solid #f5ede5;
+        transition: background 120ms;
+        position: relative;
+      }
+      .chat-list-item:hover {
+        background: #fef8f4;
+      }
+      .chat-list-item.active {
+        background: #fef0ea;
+      }
+      .chat-list-item.unread {
+        background: #fff7f3;
+      }
+      .chat-list-avatar {
+        width: 42px;
+        height: 42px;
+        border-radius: 50%;
+        background: var(--primary);
+        color: white;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        font-weight: 700;
+        font-size: 16px;
+        flex-shrink: 0;
+      }
+      .chat-list-info {
+        flex: 1;
+        min-width: 0;
+      }
+      .chat-list-header {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        margin-bottom: 3px;
+      }
+      .chat-list-name {
+        font-size: 14px;
+        font-weight: 600;
+        color: var(--dark);
+        white-space: nowrap;
+        overflow: hidden;
+        text-overflow: ellipsis;
+      }
+      .chat-list-time {
+        font-size: 11px;
+        color: #b8a99c;
+        white-space: nowrap;
+        flex-shrink: 0;
+        margin-left: 8px;
+      }
+      .chat-list-preview {
+        font-size: 12px;
+        color: #8a7a73;
+        white-space: nowrap;
+        overflow: hidden;
+        text-overflow: ellipsis;
+      }
+      .chat-list-subject {
+        font-weight: 600;
+        color: #6b5b52;
+        margin-right: 4px;
+      }
+      .chat-unread-dot {
+        position: absolute;
+        right: 14px;
+        bottom: 14px;
+        width: 9px;
+        height: 9px;
+        background: var(--primary);
+        border-radius: 50%;
+      }
+      .chat-empty-list {
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        height: 100%;
+        color: #b8a99c;
+        font-size: 14px;
+      }
+
+      /* Main chat pane */
+      .chat-main-pane {
+        flex: 1;
+        display: flex;
+        flex-direction: column;
+        min-width: 0;
+      }
+      .chat-header {
+        display: flex;
+        align-items: center;
+        gap: 12px;
+        padding: 14px 20px;
+        border-bottom: 1px solid var(--border);
+        background: white;
+      }
+      .chat-back-btn {
+        display: none;
+        background: none;
+        border: none;
+        cursor: pointer;
+        color: #6b5b52;
+        padding: 4px;
+        margin-right: 4px;
+      }
+      .chat-header-avatar {
+        width: 38px;
+        height: 38px;
+        border-radius: 50%;
+        background: var(--primary);
+        color: white;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        font-weight: 700;
+        font-size: 15px;
+        flex-shrink: 0;
+      }
+      .chat-header-info {
+        flex: 1;
+      }
+      .chat-header-name {
+        font-size: 15px;
+        font-weight: 600;
+        color: var(--dark);
+      }
+      .chat-header-sub {
+        font-size: 12px;
+        color: #8a7a73;
+      }
+      .chat-header-actions {
+        display: flex;
+        gap: 8px;
+      }
+      .chat-header-actions a {
+        display: inline-flex;
+        align-items: center;
+        gap: 6px;
+        padding: 7px 14px;
+        background: #fef0ea;
+        color: var(--primary);
+        border: 1px solid #f5d5c5;
+        border-radius: 8px;
+        font-size: 12px;
+        font-weight: 600;
+        text-decoration: none;
+        transition: background 150ms;
+      }
+      .chat-header-actions a:hover {
+        background: #fde0ce;
+      }
+
+      /* Messages area */
+      .chat-messages {
+        flex: 1;
+        overflow-y: auto;
+        padding: 20px;
+        display: flex;
+        flex-direction: column;
+        gap: 4px;
+        background: #fdf8f5;
+      }
+      .chat-date-divider {
+        text-align: center;
+        margin: 12px 0;
+      }
+      .chat-date-divider span {
+        background: #e8ddd3;
+        color: #8a7a73;
+        font-size: 11px;
+        font-weight: 600;
+        padding: 4px 14px;
+        border-radius: 20px;
+      }
+      .chat-bubble-row {
+        display: flex;
+        gap: 8px;
+        align-items: flex-end;
+        margin: 4px 0;
+      }
+      .chat-bubble-row.incoming {
+        justify-content: flex-start;
+      }
+      .chat-bubble-row.outgoing {
+        justify-content: flex-end;
+      }
+      .chat-bubble-avatar {
+        width: 30px;
+        height: 30px;
+        border-radius: 50%;
+        background: var(--primary);
+        color: white;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        font-weight: 700;
+        font-size: 12px;
+        flex-shrink: 0;
+      }
+      .chat-bubble-subject {
+        font-size: 11px;
+        font-weight: 700;
+        color: var(--primary);
+        margin-bottom: 4px;
+        text-transform: uppercase;
+        letter-spacing: 0.5px;
+      }
+      .chat-bubble {
+        max-width: 70%;
+        padding: 10px 14px;
+        border-radius: 18px;
+        font-size: 14px;
+        line-height: 1.5;
+        position: relative;
+        word-wrap: break-word;
+      }
+      .chat-bubble.incoming {
+        background: white;
+        border: 1px solid var(--border);
+        border-bottom-left-radius: 4px;
+        color: var(--dark);
+        box-shadow: 0 1px 4px rgba(0, 0, 0, 0.04);
+      }
+      .chat-bubble.outgoing {
+        background: var(--primary);
+        border-bottom-right-radius: 4px;
+        color: white;
+        box-shadow: 0 1px 4px rgba(213, 87, 42, 0.2);
+      }
+      .chat-bubble p {
+        margin: 0;
+      }
+      .chat-bubble-time {
+        display: block;
+        font-size: 10px;
+        margin-top: 6px;
+        opacity: 0.7;
+        text-align: right;
+      }
+      .chat-bubble.incoming .chat-bubble-time {
+        color: #8a7a73;
+      }
+
+      /* Empty chat state */
+      .chat-empty-state {
+        flex: 1;
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        justify-content: center;
+        color: #b8a99c;
+        padding: 40px;
+        text-align: center;
+      }
+      .chat-empty-state svg {
+        opacity: 0.3;
+        margin-bottom: 16px;
+      }
+      .chat-empty-state h3 {
+        font-family: "Fraunces", serif;
+        font-size: 20px;
+        font-weight: 600;
+        color: #d4c4ba;
+        margin-bottom: 8px;
+      }
+      .chat-empty-state p {
+        font-size: 14px;
+      }
+
+      /* Reply bar */
+      .chat-reply-bar {
+        padding: 12px 16px;
+        border-top: 1px solid var(--border);
+        background: white;
+        display: none;
+        align-items: center;
+        gap: 8px;
+      }
+      .chat-reply-field {
+        flex: 1;
+        padding: 10px 16px;
+        border-radius: 20px;
+        border: 1px solid var(--border);
+        background: #fdf8f5;
+        font-family: inherit;
+        font-size: 14px;
+        outline: none;
+      }
+      .chat-reply-field:focus {
+        border-color: var(--primary);
+        background: white;
+      }
+      .chat-send-btn {
+        width: 40px;
+        height: 40px;
+        border-radius: 50%;
+        background: var(--primary);
+        color: white;
+        border: none;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        cursor: pointer;
+        transition: transform 150ms;
+      }
+      .chat-send-btn:hover {
+        transform: scale(1.05);
+        background: var(--primary-dark);
+      }
+      .chat-header-actions a {
+        display: inline-flex;
+        align-items: center;
+        gap: 6px;
+        padding: 10px 18px;
+        background: var(--primary);
+        color: white;
+        border: none;
+        border-radius: 10px;
+        font-size: 13px;
+        font-weight: 600;
+        cursor: pointer;
+        font-family: inherit;
+        text-decoration: none;
+        white-space: nowrap;
+        transition: background 150ms;
+      }
+      .chat-reply-bar a:hover {
+        background: var(--primary-dark);
+      }
+      .chat-reply-hint {
+        font-size: 12px;
+        color: #b8a99c;
+        flex: 1;
+      }
+
+      /* ── LOADING SCREEN ──────────────────────────────────────────── */
+      .loading-screen {
+        position: fixed;
+        inset: 0;
+        background: rgba(253, 248, 243, 0.95);
+        display: none;
+        flex-direction: column;
+        align-items: center;
+        justify-content: center;
+        z-index: 10000;
+      }
+      .loading-spinner {
+        width: 50px;
+        height: 50px;
+        border: 4px solid rgba(213, 87, 42, 0.2);
+        border-top-color: #d5572a;
+        border-radius: 50%;
+        animation: spin 0.8s linear infinite;
+      }
+      @keyframes spin {
+        to {
+          transform: rotate(360deg);
+        }
+      }
+      .loading-text {
+        margin-top: 16px;
+        font-size: 14px;
+        color: #8a7a73;
+      }
+
+      /* ── RESPONSIVE ──────────────────────────────────────────────── */
       @media (max-width: 1200px) {
         .analytics-grid {
           grid-template-columns: 1fr;
         }
+        .dashboard-grid {
+          grid-template-columns: 1fr;
+        }
       }
-
       @media (max-width: 900px) {
         #sidebar {
           transform: translateX(-100%);
@@ -2953,11 +3654,32 @@
         .stats-grid {
           grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
         }
-        .dashboard-grid {
-          grid-template-columns: 1fr;
+        .chat-list-pane {
+          width: 280px;
+          min-width: 240px;
         }
       }
-
+      @media (max-width: 700px) {
+        /* Chat: show only one pane at a time */
+        .chat-container {
+          height: calc(100vh - 70px - 48px);
+        }
+        .chat-list-pane {
+          width: 100%;
+          min-width: 0;
+          border-right: none;
+        }
+        .chat-main-pane {
+          display: none;
+          width: 100%;
+        }
+        .chat-back-btn {
+          display: flex;
+        }
+        .chat-bubble {
+          max-width: 85%;
+        }
+      }
       @media (max-width: 600px) {
         .stats-grid {
           grid-template-columns: 1fr 1fr;
@@ -2971,397 +3693,236 @@
         .order-detail-grid {
           grid-template-columns: 1fr;
         }
-
-        /* Hide tables and show mobile cards on small screens */
         .data-table {
           display: none;
         }
-
         .mobile-cards-container {
           display: flex;
         }
-
         .analytics-grid {
           grid-template-columns: 1fr;
         }
-
-        .analytics-chart {
-          height: 200px;
-        }
-
         .mobile-card-content {
-          grid-template-columns: 1fr;
+          grid-template-columns: 1fr 1fr;
         }
-
         .top-product-meta {
           flex-direction: column;
           gap: 4px;
         }
       }
-
-      /* Loading Screen */
-      .loading-screen {
-        position: fixed;
-        inset: 0;
-        background: rgba(253, 248, 243, 0.95);
-        display: flex;
-        flex-direction: column;
-        align-items: center;
-        justify-content: center;
-        z-index: 10000;
-      }
-
-      .loading-spinner {
-        width: 48px;
-        height: 48px;
-        border: 4px solid var(--border);
-        border-top: 4px solid var(--primary);
-        border-radius: 50%;
-        animation: spin 1s linear infinite;
-      }
-
-      @keyframes spin {
-        to {
-          transform: rotate(360deg);
-        }
-      }
-
-      .standout-variation {
-        margin: 4px 0;
-        display: flex;
-        align-items: center;
-        gap: 8px;
-        font-size: 12px;
-        font-weight: 600;
-        color: var(--dark);
-      }
-
-      .view-details-btn {
-        width: 100%;
-        margin-top: 16px;
-        padding: 10px;
-        border: 1.5px solid var(--border);
-        border-radius: 10px;
-        background: white;
-        color: var(--dark);
-        font-weight: 600;
-        font-size: 13px;
-        cursor: pointer;
-        transition: all 200ms;
-      }
-      .view-details-btn:hover {
-        border-color: var(--primary);
-        color: var(--primary);
-      }
-
-      #upload-progress {
-        width: 100%;
-        height: 4px;
-        background: var(--border);
-        border-radius: 2px;
-        overflow: hidden;
-        margin-bottom: 12px;
-        display: none;
-      }
-
-      #upload-progress::after {
-        content: "";
-        display: block;
-        height: 100%;
-        background: var(--primary);
-        animation: progress 2s infinite;
-      }
-
-      @keyframes progress {
-        0% {
-          width: 0;
-        }
-        50% {
-          width: 100%;
-        }
-        100% {
-          width: 100%;
-        }
-      }
     </style>
   </head>
+
   <body>
     <!-- Loading Screen -->
-    <div
-      class="loading-screen"
-      id="initial-loading-screen"
-      style="display: none"
-    >
+    <div id="initial-loading-screen" class="loading-screen">
       <div class="loading-spinner"></div>
+      <div class="loading-text">Loading dashboard...</div>
     </div>
 
-    <!-- ── LOGIN SCREEN ──────────────────────────────────────────── -->
+    <!-- Login Screen -->
     <div id="login-screen">
       <div class="login-card">
-        <div class="login-logo">
-          <div
-            style="
-              width: 36px;
-              height: 36px;
-              background: var(--primary);
-              border-radius: 10px;
-              display: flex;
-              align-items: center;
-              justify-content: center;
-            "
-          >
-            <svg
-              viewBox="0 0 24 24"
-              fill="none"
-              stroke="white"
-              stroke-width="2"
-              width="20"
-              height="20"
-            >
-              <path d="M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z" />
-              <polyline points="9 22 9 12 15 12 15 22" />
-            </svg>
-          </div>
-          Vintage <span>Admin</span>
-        </div>
-        <p class="login-sub">Sign in to manage your store</p>
+        <div class="login-logo"><span>V</span> Vintage</div>
+        <p class="login-sub">Admin Dashboard</p>
         <label class="login-label">Email</label>
         <input
+          type="email"
           id="login-email"
           class="login-input"
-          type="email"
-          placeholder="you@example.com"
+          placeholder="admin@example.com"
         />
         <label class="login-label">Password</label>
         <input
+          type="password"
           id="login-pass"
           class="login-input"
-          type="password"
           placeholder="••••••••"
-          onkeydown="if (event.key === 'Enter') login();"
         />
         <div id="login-error"></div>
         <button class="login-btn" onclick="login()">Sign In</button>
       </div>
     </div>
 
-    <!-- ── APP ──────────────────────────────────────────────────── -->
+    <!-- Access Denied -->
+    <div id="access-denied-screen" class="loading-screen" style="display: none">
+      <div class="login-card" style="text-align: center">
+        <div class="login-logo" style="justify-content: center">
+          <span>!</span> Access Denied
+        </div>
+        <p class="login-sub" style="margin-bottom: 24px">
+          You do not have administrator privileges.
+        </p>
+        <button class="login-btn" onclick="logout()">
+          Sign Out & Switch Account
+        </button>
+        <button
+          class="login-btn"
+          style="
+            background: #fdf5ef;
+            color: var(--dark);
+            border: 1.5px solid var(--border);
+            margin-top: 12px;
+          "
+          onclick="window.location.href = 'index.html'"
+        >
+          Return to Store
+        </button>
+      </div>
+    </div>
+
+    <!-- Main App -->
     <div id="app">
-      <!-- SIDEBAR -->
-      <nav id="sidebar">
+      <div id="sidebar">
         <div class="sidebar-logo">
           <div class="dot">
-            <svg viewBox="0 0 24 24">
-              <path d="M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z" />
-              <polyline points="9 22 9 12 15 12 15 22" />
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor">
+              <path
+                d="M12 2L2 7v10c0 5.55 3.84 10.74 9 12 5.16-1.26 9-6.45 9-12V7l-10-5z"
+              />
             </svg>
           </div>
           Vintage
         </div>
-
-        <div class="sidebar-section-label">Main</div>
-
-        <button
-          class="nav-item active"
-          data-section="dashboard"
-          onclick="navigate('dashboard')"
-        >
-          <svg viewBox="0 0 24 24">
-            <rect x="3" y="3" width="7" height="7" />
-            <rect x="14" y="3" width="7" height="7" />
-            <rect x="14" y="14" width="7" height="7" />
-            <rect x="3" y="14" width="7" height="7" />
-          </svg>
-          Dashboard
-        </button>
-
-        <button
-          class="nav-item"
-          data-section="analytics"
-          onclick="navigate('analytics')"
-        >
-          <svg viewBox="0 0 24 24">
-            <line x1="12" y1="2" x2="12" y2="22"></line>
-            <path d="M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6"></path>
-          </svg>
-          Analytics
-        </button>
-
-        <button
-          class="nav-item"
-          data-section="products"
-          onclick="navigate('products')"
-        >
-          <svg viewBox="0 0 24 24">
-            <path
-              d="M21 16V8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16z"
-            />
-          </svg>
-          Products
-        </button>
-
-        <button
-          class="nav-item"
-          data-section="orders"
-          onclick="navigate('orders')"
-        >
-          <svg viewBox="0 0 24 24">
-            <path
-              d="M9 5H7a2 2 0 0 0-2 2v12a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2V7a2 2 0 0 0-2-2h-2"
-            />
-            <rect x="9" y="3" width="6" height="4" rx="2" />
-          </svg>
-          Orders
-        </button>
-
-        <button
-          class="nav-item"
-          data-section="offers"
-          onclick="navigate('offers')"
-        >
-          <svg viewBox="0 0 24 24">
-            <path
-              d="M20.84 4.61a5.5 5.5 0 0 0-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 0 0-7.78 7.78l1.06 1.06L12 21.23l7.78-7.78 1.06-1.06a5.5 5.5 0 0 0 0-7.78z"
-            />
-          </svg>
-          Limited Offers
-        </button>
-
-        <button
-          class="nav-item"
-          data-section="users"
-          onclick="navigate('users')"
-        >
-          <svg viewBox="0 0 24 24">
-            <path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2" />
-            <circle cx="9" cy="7" r="4" />
-            <path d="M23 21v-2a4 4 0 0 0-3-3.87" />
-            <path d="M16 3.13a4 4 0 0 1 0 7.75" />
-          </svg>
-          Customers
-        </button>
-
-        <div class="sidebar-section-label">Communicate</div>
-
-        <button
-          class="nav-item"
-          data-section="messages"
-          onclick="navigate('messages')"
-        >
-          <svg viewBox="0 0 24 24">
-            <path
-              d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"
-            />
-          </svg>
-          Messages
-          <span class="nav-badge" id="msg-badge">0</span>
-        </button>
-
-        <div class="sidebar-section-label">Config</div>
-
-        <button
-          class="nav-item"
-          data-section="settings"
-          onclick="navigate('settings')"
-        >
-          <svg viewBox="0 0 24 24">
-            <circle cx="12" cy="12" r="3" />
-            <path
-              d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83-2.83l.06-.06A1.65 1.65 0 0 0 4.68 15a1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 2.83-2.83l.06.06A1.65 1.65 0 0 0 9 4.68a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 2.83l-.06.06A1.65 1.65 0 0 0 19.4 9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"
-            />
-          </svg>
-          Settings
-        </button>
-
+        <div style="flex: 1; overflow-y: auto">
+          <div class="sidebar-section-label">Menu</div>
+          <button
+            class="nav-item active"
+            data-section="dashboard"
+            onclick="navigate('dashboard')"
+          >
+            <svg viewBox="0 0 24 24">
+              <path
+                d="M3 13h8V3H3v10zm0 8h8v-6H3v6zm10 0h8V11h-8v10zm0-18v6h8V3h-8z"
+              />
+            </svg>
+            Dashboard
+          </button>
+          <button
+            class="nav-item"
+            data-section="analytics"
+            onclick="navigate('analytics')"
+          >
+            <svg viewBox="0 0 24 24">
+              <path d="M5 9.2h3V19H5zM10.6 5h2.8v14h-2.8zm5.6 8H19v6h-2.8z" />
+            </svg>
+            Analytics
+          </button>
+          <button
+            class="nav-item"
+            data-section="products"
+            onclick="navigate('products')"
+          >
+            <svg viewBox="0 0 24 24">
+              <path
+                d="M7 18c-1.1 0-1.99.9-1.99 2S5.9 22 7 22s2-.9 2-2-.9-2-2-2zM1 2v2h2l3.6 7.59-1.35 2.45c-.16.28-.25.61-.25.96 0 1.1.9 2 2 2h12v-2H7.42c-.14 0-.25-.11-.25-.25l.03-.12.9-1.63h7.45c.75 0 1.41-.41 1.75-1.03l3.58-6.49c.08-.14.12-.31.12-.48 0-.55-.45-1-1-1H5.21l-.94-2H1zm16 16c-1.1 0-1.99.9-1.99 2s.89 2 1.99 2 2-.9 2-2-.9-2-2-2z"
+              />
+            </svg>
+            Products
+          </button>
+          <button
+            class="nav-item"
+            data-section="orders"
+            onclick="navigate('orders')"
+          >
+            <svg viewBox="0 0 24 24">
+              <path
+                d="M6 2L3 6v14a2 2 0 002 2h14a2 2 0 002-2V6l-3-4H6zM3 6h18M16 10a4 4 0 01-8 0"
+              />
+            </svg>
+            Orders
+          </button>
+          <button
+            class="nav-item"
+            data-section="users"
+            onclick="navigate('users')"
+          >
+            <svg viewBox="0 0 24 24">
+              <path
+                d="M16 11c1.66 0 2.99-1.34 2.99-3S17.66 5 16 5s-3 1.34-3 3 1.34 3 3 3zm-8 0c1.66 0 2.99-1.34 2.99-3S9.66 5 8 5C6.34 5 5 6.34 5 8s1.34 3 3 3zm0 2c-2.33 0-7 1.17-7 3.5V19h14v-2.5c0-2.33-4.67-3.5-7-3.5zm8 0c-.29 0-.62.02-.97.05 1.16.84 1.97 1.97 1.97 3.45V19h6v-2.5c0-2.33-4.67-3.5-7-3.5z"
+              />
+            </svg>
+            Customers
+          </button>
+          <button
+            class="nav-item"
+            data-section="messages"
+            onclick="navigate('messages')"
+          >
+            <svg viewBox="0 0 24 24">
+              <path
+                d="M20 2H4c-1.1 0-2 .9-2 2v18l4-4h14c1.1 0 2-.9 2-2V4c0-1.1-.9-2-2-2z"
+              />
+            </svg>
+            Messages
+            <span class="nav-badge" id="msg-badge">0</span>
+          </button>
+          <button
+            class="nav-item"
+            data-section="settings"
+            onclick="navigate('settings')"
+          >
+            <svg viewBox="0 0 24 24">
+              <path
+                d="M19.14 12.94c.04-.3.06-.61.06-.94 0-.32-.02-.64-.07-.94l2.03-1.58c.18-.14.23-.41.12-.62l-1.92-3.32c-.12-.22-.37-.29-.59-.22l-2.39.96c-.5-.38-1.03-.7-1.62-.94l-.36-2.54c-.04-.24-.24-.41-.48-.41h-3.84c-.24 0-.43.17-.47.41l-.36 2.54c-.59.24-1.13.57-1.62.94l-2.39-.96c-.22-.08-.47 0-.59.22L2.74 8.87c-.12.21-.08.48.1.62l2.03 1.58c-.05.3-.07.62-.07.94s.02.64.07.94l-2.03 1.58c-.18.14-.23.41-.12.62l1.92 3.32c.12.22.37.29.59.22l2.39-.96c.5.38 1.03.7 1.62.94l.36 2.54c.05.24.24.41.48.41h3.84c.24 0 .44-.17.47-.41l.36-2.54c.59-.24 1.13-.56 1.62-.94l2.39.96c.22.08.47 0 .59-.22l1.92-3.32c.12-.22.07-.47-.12-.61l-2.01-1.58zM12 15.5c-1.93 0-3.5-1.57-3.5-3.5s1.57-3.5 3.5-3.5 3.5 1.57 3.5 3.5-1.57 3.5-3.5 3.5z"
+              />
+            </svg>
+            Settings
+          </button>
+        </div>
         <div class="sidebar-footer">
           <div class="admin-info">
             <div class="admin-avatar">A</div>
-            <div>
-              <div style="font-size: 13px; font-weight: 600">Admin</div>
-              <div class="admin-email" id="admin-email">admin@vintage.co</div>
+            <div style="flex: 1; min-width: 0">
+              <div class="admin-email" id="admin-email">admin@vintage.com</div>
             </div>
-          </div>
-          <button class="logout-btn" onclick="logout()">
-            <svg
-              viewBox="0 0 24 24"
-              fill="none"
-              stroke="currentColor"
-              stroke-width="2"
-              width="14"
-              height="14"
-            >
-              <path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4" />
-              <polyline points="16 17 21 12 16 7" />
-              <line x1="21" y1="12" x2="9" y2="12" />
-            </svg>
-            Sign out
-          </button>
-        </div>
-      </nav>
-
-      <div id="sidebar-overlay" onclick="closeSidebar()"></div>
-
-      <!-- MAIN -->
-      <div id="main">
-        <!-- TOPBAR -->
-        <div id="topbar">
-          <div style="display: flex; align-items: center; gap: 14px">
-            <button class="hamburger-btn" onclick="toggleSidebar()">
+            <button class="logout-btn" onclick="logout()" title="Logout">
               <svg
                 viewBox="0 0 24 24"
+                width="18"
+                height="18"
                 fill="none"
                 stroke="currentColor"
                 stroke-width="2"
-                width="22"
-                height="22"
               >
-                <line x1="3" y1="6" x2="21" y2="6" />
-                <line x1="3" y1="12" x2="21" y2="12" />
-                <line x1="3" y1="18" x2="21" y2="18" />
+                <path
+                  d="M9 21H5a2 2 0 01-2-2V5a2 2 0 012-2h4M16 17l5-5-5-5M21 12H9"
+                />
+              </svg>
+            </button>
+          </div>
+        </div>
+      </div>
+
+      <div id="sidebar-overlay" onclick="closeSidebar()"></div>
+
+      <div id="main">
+        <div id="topbar">
+          <div style="display: flex; align-items: center; gap: 12px">
+            <button class="hamburger-btn" onclick="toggleSidebar()">
+              <svg
+                viewBox="0 0 24 24"
+                width="24"
+                height="24"
+                fill="none"
+                stroke="currentColor"
+                stroke-width="2"
+              >
+                <path d="M3 12h18M3 6h18M3 18h18" />
               </svg>
             </button>
             <h1 id="section-title">Dashboard</h1>
           </div>
           <div class="topbar-right">
-            <a
-              href="index.html"
-              target="_blank"
-              style="
-                font-size: 13px;
-                color: #6b5b52;
-                text-decoration: none;
-                display: flex;
-                align-items: center;
-                gap: 6px;
-              "
-            >
-              <svg
-                viewBox="0 0 24 24"
-                fill="none"
-                stroke="currentColor"
-                stroke-width="2"
-                width="15"
-                height="15"
-              >
-                <path
-                  d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 0 2-2h6"
-                />
-                <polyline points="15 3 21 3 21 9" />
-                <line x1="10" y1="14" x2="21" y2="3" />
-              </svg>
-              View Site
-            </a>
+            <button class="btn-primary" onclick="openProductModal()">
+              <span class="btn-text">+ New Product</span>
+            </button>
           </div>
         </div>
 
-        <!-- CONTENT -->
         <div id="content">
-          <!-- ── DASHBOARD ─────────────────────────────────── -->
+          <!-- ── DASHBOARD ──────────────────────────────────────── -->
           <div id="section-dashboard" class="section" style="display: block">
-            <div style="margin-bottom: 8px; font-size: 14px; color: #8a7a73">
-              Welcome back, Admin. Here's your store at a glance.
-            </div>
-
             <div class="stats-grid">
               <div class="stat-card orange">
                 <div class="stat-label">Total Revenue</div>
@@ -3373,16 +3934,15 @@
                     stroke="currentColor"
                     stroke-width="2"
                   >
-                    <line x1="12" y1="1" x2="12" y2="23" />
                     <path
-                      d="M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6"
+                      d="M12 1v22M17 5H9.5a3.5 3.5 0 000 7h5a3.5 3.5 0 010 7H6"
                     />
                   </svg>
                 </div>
               </div>
               <div class="stat-card green">
                 <div class="stat-label">Total Orders</div>
-                <div class="stat-value" id="stat-orders">—</div>
+                <div class="stat-value" id="stat-orders">0</div>
                 <div class="stat-icon green">
                   <svg
                     viewBox="0 0 24 24"
@@ -3390,17 +3950,15 @@
                     stroke="currentColor"
                     stroke-width="2"
                   >
-                    <circle cx="9" cy="21" r="1" />
-                    <circle cx="20" cy="21" r="1" />
                     <path
-                      d="M1 1h4l2.68 13.39a2 2 0 0 0 2 1.61h9.72a2 2 0 0 0 2-1.61L23 6H6"
+                      d="M6 2L3 6v14a2 2 0 002 2h14a2 2 0 002-2V6l-3-4H6zM3 6h18M16 10a4 4 0 01-8 0"
                     />
                   </svg>
                 </div>
               </div>
               <div class="stat-card gold">
-                <div class="stat-label">Total Products</div>
-                <div class="stat-value" id="stat-products">—</div>
+                <div class="stat-label">Products</div>
+                <div class="stat-value" id="stat-products">0</div>
                 <div class="stat-icon gold">
                   <svg
                     viewBox="0 0 24 24"
@@ -3408,15 +3966,13 @@
                     stroke="currentColor"
                     stroke-width="2"
                   >
-                    <path
-                      d="M21 16V8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16z"
-                    />
+                    <path d="M21 8V21H3V8M1 3h22v5H1V3zM10 12h4" />
                   </svg>
                 </div>
               </div>
               <div class="stat-card blue">
-                <div class="stat-label">Total Customers</div>
-                <div class="stat-value" id="stat-customers">—</div>
+                <div class="stat-label">Customers</div>
+                <div class="stat-value" id="stat-customers">0</div>
                 <div class="stat-icon blue">
                   <svg
                     viewBox="0 0 24 24"
@@ -3424,153 +3980,154 @@
                     stroke="currentColor"
                     stroke-width="2"
                   >
-                    <path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2" />
-                    <circle cx="9" cy="7" r="4" />
-                    <path d="M23 21v-2a4 4 0 0 0-3-3.87" />
-                    <path d="M16 3.13a4 4 0 0 1 0 7.75" />
+                    <path
+                      d="M17 21v-2a4 4 0 00-4-4H5a4 4 0 00-4 4v2M9 7a4 4 0 100-8 4 4 0 000 8zm12 14v-2a4 4 0 00-3-3.87M16 3.13a4 4 0 010 7.75"
+                    />
                   </svg>
                 </div>
               </div>
             </div>
 
             <div class="dashboard-grid">
-              <div>
-                <div class="card" style="margin-bottom: 20px">
-                  <div class="card-header">
-                    <span class="card-title">Monthly Revenue</span>
-                    <span style="font-size: 12px; color: #b8a99c"
-                      >This year</span
-                    >
-                  </div>
-                  <div style="padding: 16px 20px">
-                    <canvas id="revenue-chart"></canvas>
-                  </div>
+              <div class="card">
+                <div class="card-header">
+                  <h2 class="card-title">Recent Orders</h2>
+                  <button class="table-action" onclick="navigate('orders')">
+                    View All
+                  </button>
                 </div>
-
-                <div class="card">
-                  <div class="card-header">
-                    <span class="card-title">Recent Orders</span>
-                    <button class="table-action" onclick="navigate('orders')">
-                      View all
-                    </button>
-                  </div>
+                <div style="overflow-x: auto">
                   <table class="data-table">
                     <thead>
                       <tr>
                         <th>Image</th>
-                        <th>ID</th>
+                        <th>Order ID</th>
                         <th>Customer</th>
                         <th>Total</th>
                         <th>Status</th>
                         <th>Date</th>
-                        <th></th>
+                        <th>Action</th>
                       </tr>
                     </thead>
-                    <tbody id="recent-orders-body">
-                      <tr>
-                        <td colspan="6" class="empty-note">Loading…</td>
-                      </tr>
-                    </tbody>
+                    <tbody id="recent-orders-body"></tbody>
                   </table>
                 </div>
+                <div
+                  id="recent-orders-mobile"
+                  class="mobile-cards-container"
+                  style="padding: 16px"
+                ></div>
               </div>
 
-              <div>
+              <div style="display: flex; flex-direction: column; gap: 20px">
                 <div class="card">
                   <div class="card-header">
-                    <span class="card-title">Low Stock Alert</span>
-                    <button class="table-action" onclick="navigate('products')">
-                      Manage
-                    </button>
+                    <h2 class="card-title">Revenue (Current Year)</h2>
                   </div>
-                  <div id="low-stock-list">
-                    <p class="empty-note">Loading…</p>
+                  <div style="padding: 20px; overflow: hidden">
+                    <canvas id="revenue-chart"></canvas>
                   </div>
+                </div>
+                <div class="card">
+                  <div class="card-header">
+                    <h2 class="card-title">Low Stock</h2>
+                  </div>
+                  <div id="low-stock-list"></div>
                 </div>
               </div>
             </div>
           </div>
 
-          <!-- ── ANALYTICS ─────────────────────────────────── -->
+          <!-- ── ANALYTICS ──────────────────────────────────────── -->
           <div id="section-analytics" class="section">
-            <div style="margin-bottom: 8px; font-size: 14px; color: #8a7a73">
-              Track your store's performance with detailed analytics.
-            </div>
-
             <div class="analytics-grid">
               <div class="analytics-card">
-                <div class="analytics-card-title">Daily Revenue Trend</div>
-                <canvas
-                  id="daily-revenue-chart"
-                  class="analytics-chart"
-                ></canvas>
+                <h2 class="analytics-card-title">
+                  Daily Revenue — Last 7 Days
+                </h2>
+                <div
+                  class="analytics-chart-wrap"
+                  id="daily-revenue-chart-container"
+                >
+                  <canvas
+                    id="daily-revenue-chart"
+                    class="analytics-chart"
+                  ></canvas>
+                </div>
               </div>
-
               <div class="analytics-card">
-                <div class="analytics-card-title">Daily Orders</div>
-                <canvas
-                  id="daily-orders-chart"
-                  class="analytics-chart"
-                ></canvas>
+                <h2 class="analytics-card-title">Daily Orders — Last 7 Days</h2>
+                <div
+                  class="analytics-chart-wrap"
+                  id="daily-orders-chart-container"
+                >
+                  <canvas
+                    id="daily-orders-chart"
+                    class="analytics-chart"
+                  ></canvas>
+                </div>
               </div>
-            </div>
-
-            <div class="analytics-grid">
               <div class="analytics-card">
-                <div class="analytics-card-title">Sales by Category</div>
-                <canvas id="category-chart" class="analytics-chart"></canvas>
+                <h2 class="analytics-card-title">Sales by Category</h2>
+                <div
+                  class="analytics-chart-wrap"
+                  id="category-chart-container"
+                  style="display: flex; justify-content: center"
+                >
+                  <canvas id="category-chart" class="analytics-chart"></canvas>
+                </div>
               </div>
-
               <div class="top-products-card">
-                <div class="top-products-title">Top Products</div>
+                <h2 class="top-products-title">Top Selling Products</h2>
                 <div id="top-products-list"></div>
               </div>
             </div>
           </div>
 
-          <!-- ── PRODUCTS ──────────────────────────────────── -->
+          <!-- ── PRODUCTS ───────────────────────────────────────── -->
           <div id="section-products" class="section">
             <div class="section-toolbar">
               <input
-                class="toolbar-search"
+                type="text"
                 id="product-search"
+                class="toolbar-search"
                 placeholder="Search products…"
                 oninput="filterProducts()"
               />
+              <select
+                id="product-category-filter"
+                class="toolbar-select"
+                onchange="filterProducts()"
+              >
+                <option value="">All Categories</option>
+                <option value="Men">Men</option>
+                <option value="Women">Women</option>
+                <option value="Kids">Kids</option>
+                <option value="Teens">Teens</option>
+                <option value="Unisex">Unisex</option>
+                <option value="Shoes">Shoes</option>
+              </select>
               <button class="btn-primary" onclick="openProductModal()">
-                <svg
-                  viewBox="0 0 24 24"
-                  fill="none"
-                  stroke="currentColor"
-                  stroke-width="2.5"
-                  width="16"
-                  height="16"
-                >
-                  <line x1="12" y1="5" x2="12" y2="19" />
-                  <line x1="5" y1="12" x2="19" y2="12" />
-                </svg>
-                Add Product
+                <span class="btn-text">+ Add Product</span>
               </button>
             </div>
             <div class="card">
-              <table class="data-table">
-                <thead>
-                  <tr>
-                    <th>Image</th>
-                    <th>Name / Category</th>
-                    <th>Price</th>
-                    <th>Purchases</th>
-                    <th>Stock</th>
-                    <th>Status</th>
-                    <th>Actions</th>
-                  </tr>
-                </thead>
-                <tbody id="products-table-body">
-                  <tr>
-                    <td colspan="6" class="empty-note">Loading…</td>
-                  </tr>
-                </tbody>
-              </table>
+              <div style="overflow-x: auto">
+                <table class="data-table">
+                  <thead>
+                    <tr>
+                      <th>Image</th>
+                      <th>Product Info</th>
+                      <th>Price</th>
+                      <th>Sales</th>
+                      <th>Stock</th>
+                      <th>Status</th>
+                      <th>Actions</th>
+                    </tr>
+                  </thead>
+                  <tbody id="products-table-body"></tbody>
+                </table>
+              </div>
               <div
                 id="products-mobile-cards"
                 class="mobile-cards-container"
@@ -3578,61 +4135,24 @@
             </div>
           </div>
 
-          <!-- ── OFFERS ────────────────────────────────────── -->
-          <div id="section-offers" class="section">
-            <div class="section-toolbar">
-              <div style="flex: 1"></div>
-              <button class="btn-primary" onclick="openOfferModal()">
-                <svg
-                  viewBox="0 0 24 24"
-                  fill="none"
-                  stroke="currentColor"
-                  stroke-width="2.5"
-                  width="16"
-                  height="16"
-                >
-                  <line x1="12" y1="5" x2="12" y2="19" />
-                  <line x1="5" y1="12" x2="19" y2="12" />
-                </svg>
-                Add Limited Offer
-              </button>
-            </div>
-            <div class="card">
-              <table class="data-table">
-                <thead>
-                  <tr>
-                    <th>Image</th>
-                    <th>Name</th>
-                    <th>Price</th>
-                    <th>Discount</th>
-                    <th>Actions</th>
-                  </tr>
-                </thead>
-                <tbody id="offers-table-body">
-                  <tr>
-                    <td colspan="5" class="empty-note">Loading…</td>
-                  </tr>
-                </tbody>
-              </table>
-            </div>
-          </div>
-
-          <!-- ── ORDERS ────────────────────────────────────── -->
+          <!-- ── ORDERS ─────────────────────────────────────────── -->
           <div id="section-orders" class="section">
             <div class="section-toolbar">
               <input
-                class="toolbar-search"
+                type="text"
                 id="order-search"
-                placeholder="Search by ID or customer…"
+                class="toolbar-search"
+                placeholder="Search by Order ID or Customer…"
                 oninput="filterOrders()"
               />
               <select
-                class="toolbar-select"
                 id="order-status-filter"
+                class="toolbar-select"
                 onchange="filterOrders()"
               >
                 <option value="">All Statuses</option>
                 <option value="pending">Pending</option>
+                <option value="confirmed">Confirmed</option>
                 <option value="processing">Processing</option>
                 <option value="shipped">Shipped</option>
                 <option value="delivered">Delivered</option>
@@ -3640,26 +4160,24 @@
               </select>
             </div>
             <div class="card">
-              <table class="data-table">
-                <thead>
-                  <tr>
-                    <th>Image</th>
-                    <th>Order ID</th>
-                    <th>Customer</th>
-                    <th>Email</th>
-                    <th>Total</th>
-                    <th>Items</th>
-                    <th>Status</th>
-                    <th>Date</th>
-                    <th></th>
-                  </tr>
-                </thead>
-                <tbody id="orders-table-body">
-                  <tr>
-                    <td colspan="8" class="empty-note">Loading…</td>
-                  </tr>
-                </tbody>
-              </table>
+              <div style="overflow-x: auto">
+                <table class="data-table">
+                  <thead>
+                    <tr>
+                      <th>Image</th>
+                      <th>Order ID</th>
+                      <th>Customer</th>
+                      <th>Email</th>
+                      <th>Total</th>
+                      <th>Items</th>
+                      <th>Status</th>
+                      <th>Date</th>
+                      <th>Action</th>
+                    </tr>
+                  </thead>
+                  <tbody id="orders-table-body"></tbody>
+                </table>
+              </div>
               <div
                 id="orders-mobile-cards"
                 class="mobile-cards-container"
@@ -3667,287 +4185,326 @@
             </div>
           </div>
 
-          <!-- ── CUSTOMERS ─────────────────────────────────── -->
+          <!-- ── CUSTOMERS ──────────────────────────────────────── -->
           <div id="section-users" class="section">
             <div class="section-toolbar">
               <input
-                class="toolbar-search"
+                type="text"
                 id="user-search"
+                class="toolbar-search"
                 placeholder="Search customers…"
                 oninput="filterUsers()"
               />
             </div>
             <div class="card">
-              <table class="data-table">
-                <thead>
-                  <tr>
-                    <th></th>
-                    <th>Name</th>
-                    <th>Email</th>
-                    <th>Phone</th>
-                    <th>Orders</th>
-                    <th>Total Spent</th>
-                    <th>Joined</th>
-                  </tr>
-                </thead>
-                <tbody id="users-table-body">
-                  <tr>
-                    <td colspan="7" class="empty-note">Loading…</td>
-                  </tr>
-                </tbody>
-              </table>
+              <div style="overflow-x: auto">
+                <table class="data-table">
+                  <thead>
+                    <tr>
+                      <th>Avatar</th>
+                      <th>Customer Info</th>
+                      <th>Phone</th>
+                      <th>Orders</th>
+                      <th>Total Spent</th>
+                      <th>Action</th>
+                    </tr>
+                  </thead>
+                  <tbody id="users-table-body"></tbody>
+                </table>
+              </div>
               <div id="users-mobile-cards" class="mobile-cards-container"></div>
             </div>
           </div>
 
-          <!-- ── MESSAGES ──────────────────────────────────── -->
+          <!-- ── MESSAGES (WhatsApp-style) ──────────────────────── -->
           <div id="section-messages" class="section">
-            <div class="section-toolbar">
+            <!-- Toolbar above the chat -->
+            <div class="section-toolbar" style="margin-bottom: 12px">
               <input
-                class="toolbar-search"
+                type="text"
                 id="msg-search"
+                class="toolbar-search"
                 placeholder="Search messages…"
                 oninput="filterMessages()"
               />
               <select
-                class="toolbar-select"
                 id="msg-filter"
+                class="toolbar-select"
                 onchange="filterMessages()"
               >
-                <option value="all">All</option>
+                <option value="all">All Messages</option>
                 <option value="unread">Unread</option>
                 <option value="read">Read</option>
               </select>
             </div>
-            <div class="card">
-              <div id="messages-list"><p class="empty-note">Loading…</p></div>
+
+            <div class="chat-container">
+              <!-- Left: conversation list -->
+              <div class="chat-list-pane" id="chat-list-pane">
+                <div class="chat-list-items" id="chat-list-items">
+                  <!-- Populated by JS -->
+                </div>
+              </div>
+
+              <!-- Right: chat pane -->
+              <div class="chat-main-pane" id="chat-main-pane">
+                <!-- Header -->
+                <div class="chat-header" id="chat-active-header">
+                  <button class="chat-back-btn" onclick="backToList()">
+                    <svg
+                      viewBox="0 0 24 24"
+                      width="20"
+                      height="20"
+                      fill="none"
+                      stroke="currentColor"
+                      stroke-width="2"
+                    >
+                      <path d="M19 12H5M12 5l-7 7 7 7" />
+                    </svg>
+                  </button>
+                  <div class="chat-header-avatar" id="chat-header-avatar">
+                    ?
+                  </div>
+                  <div class="chat-header-info">
+                    <div class="chat-header-name" id="chat-header-name">
+                      Select a conversation
+                    </div>
+                    <div class="chat-header-sub" id="chat-header-sub"></div>
+                  </div>
+                  <div class="chat-header-actions"></div>
+                </div>
+
+                <!-- Empty state -->
+                <div class="chat-empty-state" id="chat-empty-state">
+                  <svg
+                    viewBox="0 0 24 24"
+                    width="64"
+                    height="64"
+                    fill="none"
+                    stroke="#d4c4ba"
+                    stroke-width="1.5"
+                  >
+                    <path
+                      d="M20 2H4c-1.1 0-2 .9-2 2v18l4-4h14c1.1 0 2-.9 2-2V4c0-1.1-.9-2-2-2z"
+                    />
+                  </svg>
+                  <h3>Your Messages</h3>
+                  <p>Select a conversation from the list to read and reply.</p>
+                </div>
+
+                <!-- Messages area -->
+                <div
+                  class="chat-messages"
+                  id="chat-messages-area"
+                  style="display: none"
+                ></div>
+
+                <!-- Reply bar -->
+                <div class="chat-reply-bar" id="chat-reply-bar">
+                  <input
+                    type="text"
+                    id="chat-reply-input"
+                    class="chat-reply-field"
+                    placeholder="Type your message..."
+                  />
+                  <button onclick="sendReply()" class="chat-send-btn">
+                    <svg
+                      viewBox="0 0 24 24"
+                      width="20"
+                      height="20"
+                      fill="none"
+                      stroke="currentColor"
+                      stroke-width="2"
+                    >
+                      <path d="M22 2L11 13M22 2l-7 20-4-9-9-4 20-7z" />
+                    </svg>
+                  </button>
+                </div>
+              </div>
             </div>
           </div>
 
-          <!-- ── SETTINGS ──────────────────────────────────── -->
+          <!-- ── SETTINGS ────────────────────────────────────────── -->
           <div id="section-settings" class="section">
             <div class="card" style="padding: 24px">
               <div class="settings-section">
-                <div class="settings-section-title">Store Information</div>
+                <h3 class="settings-section-title">General Information</h3>
                 <div class="form-row">
                   <div class="form-group">
                     <label class="form-label">Site Name</label
-                    ><input
-                      id="set-site-name"
-                      class="form-input"
-                      placeholder="Vintage Collections"
-                    />
+                    ><input type="text" id="set-site-name" class="form-input" />
                   </div>
                   <div class="form-group">
                     <label class="form-label">Tagline</label
-                    ><input
-                      id="set-tagline"
-                      class="form-input"
-                      placeholder="Curated Goods from Kenya"
-                    />
+                    ><input type="text" id="set-tagline" class="form-input" />
                   </div>
                 </div>
+              </div>
+              <div class="settings-section">
+                <h3 class="settings-section-title">Contact & Location</h3>
                 <div class="form-row">
                   <div class="form-group">
-                    <label class="form-label">Contact Email</label
-                    ><input id="set-email" class="form-input" type="email" />
+                    <label class="form-label">Support Email</label
+                    ><input type="email" id="set-email" class="form-input" />
                   </div>
                   <div class="form-group">
-                    <label class="form-label">Phone</label
-                    ><input id="set-phone" class="form-input" />
+                    <label class="form-label">Support Phone</label
+                    ><input type="text" id="set-phone" class="form-input" />
                   </div>
                 </div>
                 <div class="form-group">
-                  <label class="form-label">Address</label
-                  ><input id="set-address" class="form-input" />
+                  <label class="form-label">Business Address</label
+                  ><input type="text" id="set-address" class="form-input" />
                 </div>
               </div>
-
               <div class="settings-section">
-                <div class="settings-section-title">Commerce</div>
+                <h3 class="settings-section-title">Shipping & Currency</h3>
                 <div class="form-row">
                   <div class="form-group">
-                    <label class="form-label">Currency</label>
-                    <select id="set-currency" class="form-select">
-                      <option>KES</option>
-                      <option>USD</option>
-                      <option>EUR</option>
-                    </select>
+                    <label class="form-label">Currency</label
+                    ><input type="text" id="set-currency" class="form-input" />
                   </div>
                   <div class="form-group">
-                    <label class="form-label">Shipping Fee (KES)</label
+                    <label class="form-label">Flat Shipping Fee (KES)</label
                     ><input
+                      type="number"
                       id="set-shipping-fee"
                       class="form-input"
+                    />
+                  </div>
+                  <div class="form-group">
+                    <label class="form-label"
+                      >Free Shipping Threshold (KES)</label
+                    ><input
                       type="number"
+                      id="set-free-threshold"
+                      class="form-input"
                     />
                   </div>
                 </div>
-                <div class="form-group">
-                  <label class="form-label">Free Shipping Threshold (KES)</label
-                  ><input
-                    id="set-free-threshold"
-                    class="form-input"
-                    type="number"
-                    placeholder="e.g. 5000"
-                  />
-                </div>
               </div>
-
               <div class="settings-section">
-                <div class="settings-section-title">Social Media</div>
+                <h3 class="settings-section-title">Social Media</h3>
                 <div class="form-row">
                   <div class="form-group">
                     <label class="form-label">Instagram URL</label
-                    ><input id="set-instagram" class="form-input" />
+                    ><input type="text" id="set-instagram" class="form-input" />
                   </div>
                   <div class="form-group">
                     <label class="form-label">Facebook URL</label
-                    ><input id="set-facebook" class="form-input" />
+                    ><input type="text" id="set-facebook" class="form-input" />
                   </div>
                 </div>
               </div>
-
               <button class="btn-primary" onclick="saveSettings()">
                 Save Settings
               </button>
             </div>
           </div>
         </div>
-        <!-- /content -->
+        <!-- /#content -->
       </div>
-      <!-- /main -->
+      <!-- /#main -->
     </div>
-    <!-- /app -->
+    <!-- /#app -->
 
-    <!-- ── PRODUCT MODAL ────────────────────────────────────────── -->
+    <!-- Product Modal -->
     <div id="product-modal" class="modal">
       <div class="modal-content">
         <div class="modal-header">
-          <div class="modal-title" id="modal-title">Add Product</div>
+          <h2 class="modal-title">Product Details</h2>
           <button class="modal-close" onclick="closeProductModal()">✕</button>
         </div>
         <div class="modal-body">
           <form id="product-form">
-            <div class="form-group">
-              <label class="form-label">Product Name</label>
-              <input
+            <div class="form-group" style="margin-bottom: 16px">
+              <label class="form-label">Product Name</label
+              ><input
+                type="text"
                 name="prod-name"
                 class="form-input"
-                placeholder="e.g. Classic Oxford Shoes"
+                required
               />
             </div>
-
             <div class="form-row">
               <div class="form-group">
-                <label class="form-label">Category</label>
-                <select
+                <label class="form-label">Category</label
+                ><select
                   name="prod-category"
                   class="form-select"
-                  onchange="toggleSizeOptions(this.value)"
+                  onchange="handleCategoryChange()"
                 >
-                  <option value="Women">Women</option>
                   <option value="Men">Men</option>
+                  <option value="Women">Women</option>
+                  <option value="Kids">Kids</option>
+                  <option value="Teens">Teens</option>
+                  <option value="Unisex">Unisex</option>
                   <option value="Shoes">Shoes</option>
-                  <option value="Beauty">Beauty</option>
-                  <option value="Accessories">Accessories</option>
                 </select>
               </div>
               <div class="form-group">
-                <label class="form-label">Condition</label>
-                <select name="prod-condition" class="form-select">
-                  <option value="Good">Good</option>
-                  <option value="Excellent">Excellent</option>
-                  <option value="Like New">Like New</option>
-                </select>
-              </div>
-            </div>
-
-            <div class="form-row">
-              <div class="form-group">
-                <label class="form-label">Price (KES)</label>
-                <input
+                <label class="form-label">Price (KES)</label
+                ><input
+                  type="number"
                   name="prod-price"
                   class="form-input"
-                  type="number"
-                  placeholder="0"
-                />
-              </div>
-              <div class="form-group">
-                <label class="form-label">Original Price (KES)</label>
-                <input
-                  name="prod-original-price"
-                  class="form-input"
-                  type="number"
-                  placeholder="0"
+                  required
                 />
               </div>
             </div>
-
             <div class="form-row">
               <div class="form-group">
-                <label class="form-label">Stock Quantity</label>
-                <input
-                  name="prod-stock"
-                  class="form-input"
+                <label class="form-label">Original Price (Optional)</label
+                ><input
                   type="number"
-                  placeholder="0"
+                  name="prod-original-price"
+                  class="form-input"
                 />
               </div>
               <div class="form-group">
-                <label class="form-label">Seller Name</label>
-                <input
-                  name="prod-seller"
+                <label class="form-label">Stock Quantity</label
+                ><input
+                  type="number"
+                  name="prod-stock"
                   class="form-input"
-                  placeholder="Your store name"
+                  required
                 />
               </div>
             </div>
-
-            <div class="form-group">
-              <label class="form-label">Description</label>
-              <textarea
+            <div class="form-row">
+              <div class="form-group">
+                <label class="form-label">Condition</label
+                ><select name="prod-condition" class="form-select">
+                  <option value="New">New</option>
+                  <option value="Used - Like New">Used - Like New</option>
+                  <option value="Used - Good">Used - Good</option>
+                  <option value="Used - Fair">Used - Fair</option>
+                </select>
+              </div>
+            </div>
+            <div class="form-group" style="margin-bottom: 16px">
+              <label class="form-label">Description</label
+              ><textarea
                 name="prod-description"
                 class="form-textarea"
-                placeholder="Describe the product…"
               ></textarea>
             </div>
 
-            <div class="form-group">
-              <label class="form-check">
-                <input type="checkbox" name="prod-bestseller" /> Mark as
-                Bestseller
-              </label>
-            </div>
-
-            <div class="form-group">
-              <label class="form-check">
-                <input type="checkbox" name="prod-on-sale" /> On Sale
-              </label>
-            </div>
-
-            <div class="form-row">
-              <div class="form-group">
-                <label class="form-label">Discount (%)</label>
-                <input
-                  name="prod-discount"
-                  class="form-input"
-                  placeholder="e.g. 10"
-                />
-              </div>
-            </div>
-
-            <div class="form-group">
+            <div class="form-group" style="margin-bottom: 16px">
               <label class="form-label">Colors</label>
-              <div id="color-options"></div>
+              <div
+                id="color-options"
+                style="display: flex; flex-wrap: wrap; gap: 8px"
+              ></div>
             </div>
-
-            <div class="form-group" id="size-group">
+            <div class="form-group" id="size-group" style="margin-bottom: 16px">
               <label class="form-label">Sizes</label>
-              <div id="size-options"></div>
+              <div
+                id="size-options"
+                style="display: flex; flex-wrap: wrap; gap: 8px"
+              ></div>
             </div>
-
-            <div class="form-group">
+            <div class="form-group" style="margin-bottom: 16px">
               <label class="form-label">Product Images</label>
               <input
                 type="file"
@@ -3955,14 +4512,24 @@
                 accept="image/*"
                 onchange="handleImageUpload(event)"
               />
-              <div id="upload-progress"></div>
-              <div id="image-preview-list"></div>
+              <div
+                id="upload-progress"
+                style="
+                  display: none;
+                  font-size: 12px;
+                  color: var(--primary);
+                  margin-top: 4px;
+                "
+              >
+                Uploading…
+              </div>
+              <div id="image-preview-list" style="margin-top: 12px"></div>
             </div>
-
             <button
               type="button"
-              class="btn-primary"
               id="save-product-btn"
+              class="btn-primary"
+              style="width: 100%"
               onclick="saveProduct()"
             >
               <span class="btn-text">Save Product</span>
@@ -3973,70 +4540,14 @@
       </div>
     </div>
 
-    <!-- ── OFFER MODAL ────────────────────────────────────────── -->
-    <div id="offer-modal" class="modal">
-      <div class="modal-content">
-        <div class="modal-header">
-          <div class="modal-title">Limited Offer</div>
-          <button class="modal-close" onclick="closeOfferModal()">✕</button>
-        </div>
-        <div class="modal-body">
-          <form id="offer-form">
-            <div class="form-group">
-              <label class="form-label">Product Name</label>
-              <input name="offer-name" class="form-input" />
-            </div>
-            <div class="form-row">
-              <div class="form-group">
-                <label class="form-label">Price (KES)</label>
-                <input
-                  name="offer-price"
-                  class="form-input"
-                  type="number"
-                  placeholder="0"
-                />
-              </div>
-              <div class="form-group">
-                <label class="form-label">Discount (%)</label>
-                <input
-                  name="offer-discount"
-                  class="form-input"
-                  type="number"
-                  placeholder="0"
-                />
-              </div>
-            </div>
-            <div class="form-group">
-              <label class="form-label">Image URL</label>
-              <input name="offer-image" class="form-input" />
-            </div>
-            <button type="button" class="btn-primary" onclick="saveOffer()">
-              Save Offer
-            </button>
-          </form>
-        </div>
-      </div>
-    </div>
-
-    <!-- ── ORDER MODAL ────────────────────────────────────────── -->
+    <!-- Order Modal -->
     <div id="order-modal" class="modal">
-      <div class="modal-content">
+      <div class="modal-content" style="max-width: 800px">
         <div class="modal-header">
-          <div class="modal-title">Order Details</div>
+          <h2 class="modal-title">Order Details</h2>
           <button class="modal-close" onclick="closeOrderModal()">✕</button>
         </div>
         <div class="modal-body" id="order-modal-body"></div>
-      </div>
-    </div>
-
-    <!-- ── MESSAGE MODAL ────────────────────────────────────────── -->
-    <div id="msg-modal" class="modal">
-      <div class="modal-content">
-        <div class="modal-header">
-          <div class="modal-title">Message</div>
-          <button class="modal-close" onclick="closeMsgModal()">✕</button>
-        </div>
-        <div class="modal-body" id="msg-modal-body"></div>
       </div>
     </div>
   </body>

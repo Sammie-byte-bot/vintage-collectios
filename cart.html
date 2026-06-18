@@ -498,7 +498,6 @@
       function init() {
         loadCart();
         renderCart();
-        updateCartCount();
       }
 
       // Load Cart from localStorage
@@ -520,6 +519,7 @@
           `;
           document.getElementById("checkout-btn").disabled = true;
           updateSummary();
+          updateCartCount();
           return;
         }
 
@@ -532,14 +532,14 @@
                 <div class="item-name">${item.name}</div>
                 <div class="item-price">KES ${item.price.toLocaleString()}</div>
                 <div class="item-quantity">
-                  <button class="qty-btn" onclick="decreaseQuantity(${item.id})">−</button>
+                  <button class="qty-btn" onclick="decreaseQuantity('${item.id}')">−</button>
                   <input type="number" class="qty-input" value="${item.quantity}" readonly>
-                  <button class="qty-btn" onclick="increaseQuantity(${item.id})">+</button>
+                  <button class="qty-btn" onclick="increaseQuantity('${item.id}')">+</button>
                 </div>
               </div>
               <div class="item-actions">
                 <div class="item-total">KES ${(item.price * item.quantity).toLocaleString()}</div>
-                <button class="remove-btn" onclick="removeItem(${item.id})">Remove</button>
+                <button class="remove-btn" onclick="removeItem('${item.id}')">Remove</button>
               </div>
             </div>
           `,
@@ -547,6 +547,7 @@
           .join("");
 
         updateSummary();
+        updateCartCount();
         document.getElementById("checkout-btn").disabled = false;
       }
 

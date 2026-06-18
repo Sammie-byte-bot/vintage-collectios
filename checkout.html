@@ -511,10 +511,6 @@
               <label>City *</label>
               <input type="text" id="city" required />
             </div>
-            <div class="form-group">
-              <label>Postal Code *</label>
-              <!-- Postal Code removed as per request -->
-            </div>
           </div>
           <div class="form-group">
             <label>Delivery Area *</label>
@@ -692,7 +688,10 @@
         addDoc,
         serverTimestamp,
       } from "https://www.gstatic.com/firebasejs/10.7.0/firebase-firestore.js";
-      import { getAuth } from "https://www.gstatic.com/firebasejs/10.7.0/firebase-auth.js";
+      import {
+        getAuth,
+        onAuthStateChanged,
+      } from "https://www.gstatic.com/firebasejs/10.7.0/firebase-auth.js";
       import { firebaseConfig } from "./firebase-config.js";
 
       // Initialize Firebase
@@ -712,6 +711,17 @@
       let cart = [];
       window.selectedPayment = "card";
 
+      // Authentication Check
+      onAuthStateChanged(auth, (user) => {
+        if (!user) {
+          // Store current URL to return after login
+          sessionStorage.setItem("redirectAfterLogin", window.location.href);
+          window.location.href = "auth.html";
+        } else {
+          init();
+        }
+      });
+
       // Initialize
       function init() {
         loadCart();
@@ -721,8 +731,6 @@
       // Load Cart from localStorage
       function loadCart() {
         cart = JSON.parse(localStorage.getItem("cart")) || [];
-        // Ensure cart is an array of items with standard properties
-        // Filter out any invalid items
         if (cart.length === 0) {
           window.location.href = "cart.html";
         }
@@ -731,6 +739,7 @@
       // Render Order Review
       function renderOrderReview() {
         const container = document.getElementById("order-items");
+        if (!container) return;
         container.innerHTML = cart
           .map(
             (item) => `
@@ -762,19 +771,21 @@
           shipping = deliveryAreaFees[selectedArea];
         }
 
-        // If subtotal is 0, shipping should also be 0
         if (subtotal === 0) {
           shipping = 0;
         }
 
         const total = subtotal + shipping;
 
-        document.getElementById("review-subtotal").textContent =
-          `KES ${subtotal.toLocaleString()}`;
-        document.getElementById("review-shipping").textContent =
-          `KES ${shipping.toLocaleString()}`;
-        document.getElementById("review-total").textContent =
-          `KES ${total.toLocaleString()}`;
+        const subtotalEl = document.getElementById("review-subtotal");
+        const shippingEl = document.getElementById("review-shipping");
+        const totalEl = document.getElementById("review-total");
+
+        if (subtotalEl)
+          subtotalEl.textContent = `KES ${subtotal.toLocaleString()}`;
+        if (shippingEl)
+          shippingEl.textContent = `KES ${shipping.toLocaleString()}`;
+        if (totalEl) totalEl.textContent = `KES ${total.toLocaleString()}`;
       }
 
       // Update delivery fee when area changes
@@ -786,13 +797,11 @@
       window.selectPayment = (method, element) => {
         selectedPayment = method;
 
-        // Update active state
         document.querySelectorAll(".payment-option").forEach((opt) => {
           opt.classList.remove("active");
         });
         element.classList.add("active");
 
-        // Show/hide payment forms
         document.getElementById("card-payment").style.display =
           method === "card" ? "block" : "none";
         document.getElementById("mpesa-payment").style.display =
@@ -800,7 +809,6 @@
         document.getElementById("paypal-payment").style.display =
           method === "paypal" ? "block" : "none";
 
-        // Update required fields
         if (method === "card") {
           document.getElementById("cardNumber").required = true;
           document.getElementById("expiryDate").required = true;
@@ -823,6 +831,12 @@
       window.handleSubmit = async (event) => {
         event.preventDefault();
 
+        if (!auth.currentUser) {
+          showToast("Please sign in to place an order");
+          window.location.href = "auth.html";
+          return;
+        }
+
         if (!document.getElementById("checkout-form").checkValidity()) {
           showToast("Please fill in all required fields");
           return;
@@ -841,7 +855,6 @@
 
           const finalTotalAmount = subtotal + actualDeliveryFee;
 
-          // Calculate estimated delivery (3 days from now)
           const deliveryDate = new Date();
           deliveryDate.setDate(deliveryDate.getDate() + 3);
           const estimatedDelivery = deliveryDate.toLocaleDateString("en-KE", {
@@ -850,25 +863,24 @@
             year: "numeric",
           });
 
-          // Map data to your specific schema
           const orderData = {
-            userId: auth.currentUser ? auth.currentUser.uid : null,
+            userId: auth.currentUser.uid, // Required: Now strictly enforced
             customerName: `${document.getElementById("firstName").value} ${document.getElementById("lastName").value}`,
             customerEmail: document.getElementById("email").value,
-            phone: parseInt(document.getElementById("phone").value) || 0, // stored as int64
+            phone: parseInt(document.getElementById("phone").value) || 0,
             address: `${document.getElementById("address").value}, ${document.getElementById("city").value}, ${document.getElementById("country").value}`,
             deliveryArea: selectedDeliveryArea,
             deliveryFee: actualDeliveryFee,
-            notes: "", // Empty string as per schema
+            notes: "",
             status: "pending",
             paymentMethod: selectedPayment,
             estimatedDelivery: estimatedDelivery,
-            total: finalTotalAmount.toString(), // stored as string
+            total: finalTotalAmount, // Stored as number for better rule validation
             items: cart.map((item) => ({
               name: item.name,
-              image: item.image, // Include image for dashboard thumbnails
-              qty: item.quantity.toString(), // stored as string
-              price: item.price.toString(), // stored as string
+              image: item.image,
+              qty: item.quantity, // Stored as number
+              price: item.price, // Stored as number
               color: item.color || null,
               size: item.size || null,
             })),
@@ -876,13 +888,11 @@
             updatedAt: serverTimestamp(),
           };
 
-          // Add document to "orders" collection in Firestore
           const docRef = await addDoc(collection(db, "orders"), orderData);
 
           document.getElementById("order-id-display").textContent =
             `Order ID: #${docRef.id.slice(0, 10).toUpperCase()}`;
 
-          // Show success modal
           document.getElementById("success-modal").classList.add("active");
 
           localStorage.removeItem("cart");
@@ -892,12 +902,12 @@
         }
       };
 
-      // Go to Shop
+      // Navigation helpers
       window.goToShop = () => {
         window.location.href = "shop.html";
       };
 
-      // Show Toast
+      // Toast helper
       function showToast(message) {
         const toast = document.createElement("div");
         toast.className = "toast";
@@ -909,9 +919,6 @@
           setTimeout(() => toast.remove(), 300);
         }, 3000);
       }
-
-      // Initialize on load
-      document.addEventListener("DOMContentLoaded", init);
     </script>
   </body>
 </html>
