@@ -1,0 +1,960 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Legal — Vintage Collections</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link
+      href="https://fonts.googleapis.com/css2?family=Playfair+Display:ital,wght@0,400;0,600;1,400&family=Inter:wght@300;400;500;600&display=swap"
+      rel="stylesheet"
+    />
+
+    <style>
+      /* ── Design tokens ─────────────────────────────────────────── */
+      :root {
+        --cream: #f8f4ee;
+        --warm-white: #fdfaf6;
+        --charcoal: #1c1c1c;
+        --mid-grey: #5a5a5a;
+        --light-grey: #d6d0c8;
+        --accent: #8b5e3c; /* warm cognac — echoes leather/market */
+        --accent-light: #c49a6c;
+        --rule: #e3ddd5;
+        --nav-bg: #1c1c1c;
+
+        --serif: "Playfair Display", Georgia, serif;
+        --sans: "Inter", system-ui, sans-serif;
+
+        --max-w: 860px;
+        --section-gap: 3.5rem;
+      }
+
+      *,
+      *::before,
+      *::after {
+        box-sizing: border-box;
+        margin: 0;
+        padding: 0;
+      }
+
+      html {
+        scroll-behavior: smooth;
+      }
+
+      body {
+        background: var(--cream);
+        color: var(--charcoal);
+        font-family: var(--sans);
+        font-size: 16px;
+        line-height: 1.75;
+      }
+
+      /* ── NAV ────────────────────────────────────────────────────── */
+      .nav {
+        position: sticky;
+        top: 0;
+        z-index: 100;
+        background: var(--nav-bg);
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        padding: 0 2rem;
+        height: 60px;
+      }
+      .nav-logo {
+        font-family: var(--serif);
+        font-size: 1.15rem;
+        color: #fff;
+        text-decoration: none;
+        letter-spacing: 0.02em;
+      }
+      .nav-links {
+        display: flex;
+        gap: 2rem;
+      }
+      .nav-links a {
+        font-size: 0.85rem;
+        color: rgba(255, 255, 255, 0.75);
+        text-decoration: none;
+        letter-spacing: 0.06em;
+        text-transform: uppercase;
+        transition: color 0.2s;
+      }
+      .nav-links a:hover {
+        color: var(--accent-light);
+      }
+
+      /* ── HERO / PAGE HEADER ─────────────────────────────────────── */
+      .page-header {
+        background: var(--charcoal);
+        color: #fff;
+        padding: 4rem 2rem 3.5rem;
+        text-align: center;
+      }
+      .page-header .eyebrow {
+        font-size: 0.75rem;
+        letter-spacing: 0.14em;
+        text-transform: uppercase;
+        color: var(--accent-light);
+        margin-bottom: 1rem;
+      }
+      .page-header h1 {
+        font-family: var(--serif);
+        font-size: clamp(2rem, 5vw, 3.25rem);
+        font-weight: 400;
+        line-height: 1.2;
+        margin-bottom: 1rem;
+      }
+      .page-header h1 em {
+        font-style: italic;
+        color: var(--accent-light);
+      }
+      .page-header .subtitle {
+        color: rgba(255, 255, 255, 0.6);
+        font-size: 0.95rem;
+        max-width: 520px;
+        margin: 0 auto 2rem;
+      }
+      .last-updated {
+        display: inline-block;
+        border: 1px solid rgba(255, 255, 255, 0.2);
+        border-radius: 2rem;
+        padding: 0.35rem 1rem;
+        font-size: 0.78rem;
+        color: rgba(255, 255, 255, 0.5);
+        letter-spacing: 0.04em;
+      }
+
+      /* ── STICKY NAV TABS ────────────────────────────────────────── */
+      .legal-tabs {
+        position: sticky;
+        top: 60px;
+        z-index: 90;
+        background: var(--warm-white);
+        border-bottom: 1px solid var(--rule);
+        padding: 0 2rem;
+        display: flex;
+        gap: 0;
+        overflow-x: auto;
+        scrollbar-width: none;
+      }
+      .legal-tabs::-webkit-scrollbar {
+        display: none;
+      }
+      .tab-link {
+        padding: 1rem 1.25rem;
+        font-size: 0.82rem;
+        letter-spacing: 0.06em;
+        text-transform: uppercase;
+        color: var(--mid-grey);
+        text-decoration: none;
+        border-bottom: 2px solid transparent;
+        white-space: nowrap;
+        transition:
+          color 0.2s,
+          border-color 0.2s;
+      }
+      .tab-link:hover,
+      .tab-link.active {
+        color: var(--accent);
+        border-bottom-color: var(--accent);
+      }
+
+      /* ── LAYOUT ─────────────────────────────────────────────────── */
+      .legal-wrap {
+        max-width: var(--max-w);
+        margin: 0 auto;
+        padding: 0 2rem;
+      }
+
+      /* ── LEGAL SECTIONS ─────────────────────────────────────────── */
+      .legal-section {
+        padding: var(--section-gap) 0;
+        border-bottom: 1px solid var(--rule);
+      }
+      .legal-section:last-child {
+        border-bottom: none;
+      }
+
+      .section-label {
+        font-size: 0.72rem;
+        letter-spacing: 0.14em;
+        text-transform: uppercase;
+        color: var(--accent);
+        margin-bottom: 0.6rem;
+      }
+      .legal-section h2 {
+        font-family: var(--serif);
+        font-size: clamp(1.5rem, 3vw, 2rem);
+        font-weight: 400;
+        line-height: 1.3;
+        margin-bottom: 1.5rem;
+        color: var(--charcoal);
+      }
+      .legal-section h3 {
+        font-family: var(--sans);
+        font-size: 0.95rem;
+        font-weight: 600;
+        letter-spacing: 0.02em;
+        margin: 2rem 0 0.6rem;
+        color: var(--charcoal);
+      }
+      .legal-section p {
+        color: var(--mid-grey);
+        font-size: 0.95rem;
+        margin-bottom: 1rem;
+      }
+      .legal-section ul {
+        margin: 0.5rem 0 1rem 1.25rem;
+        color: var(--mid-grey);
+        font-size: 0.95rem;
+      }
+      .legal-section ul li {
+        margin-bottom: 0.4rem;
+      }
+
+      /* Highlight box */
+      .info-box {
+        background: var(--warm-white);
+        border-left: 3px solid var(--accent);
+        padding: 1.25rem 1.5rem;
+        margin: 1.5rem 0;
+        border-radius: 0 4px 4px 0;
+      }
+      .info-box p {
+        margin: 0;
+        font-size: 0.9rem;
+        color: var(--mid-grey);
+      }
+      .info-box strong {
+        color: var(--charcoal);
+      }
+
+      /* Table */
+      .legal-table {
+        width: 100%;
+        border-collapse: collapse;
+        font-size: 0.88rem;
+        margin: 1.25rem 0;
+      }
+      .legal-table th {
+        text-align: left;
+        font-weight: 600;
+        color: var(--charcoal);
+        padding: 0.6rem 1rem;
+        background: var(--warm-white);
+        border-bottom: 2px solid var(--rule);
+      }
+      .legal-table td {
+        padding: 0.65rem 1rem;
+        color: var(--mid-grey);
+        border-bottom: 1px solid var(--rule);
+        vertical-align: top;
+      }
+      .legal-table tr:last-child td {
+        border-bottom: none;
+      }
+
+      /* Contact card */
+      .contact-card {
+        background: var(--charcoal);
+        color: #fff;
+        padding: 2rem 2.25rem;
+        border-radius: 6px;
+        margin-top: 1.5rem;
+      }
+      .contact-card h3 {
+        font-family: var(--serif);
+        font-weight: 400;
+        font-size: 1.2rem;
+        margin-bottom: 0.75rem;
+        color: #fff;
+      }
+      .contact-card p {
+        color: rgba(255, 255, 255, 0.65);
+        font-size: 0.9rem;
+        margin-bottom: 0.4rem;
+      }
+      .contact-card a {
+        color: var(--accent-light);
+        text-decoration: none;
+      }
+      .contact-card a:hover {
+        text-decoration: underline;
+      }
+
+      /* ── FOOTER ─────────────────────────────────────────────────── */
+      .footer {
+        background: var(--charcoal);
+        color: rgba(255, 255, 255, 0.55);
+        padding: 3rem 2rem 1.5rem;
+        margin-top: 4rem;
+      }
+      .footer-grid {
+        display: grid;
+        grid-template-columns: repeat(auto-fit, minmax(160px, 1fr));
+        gap: 2.5rem;
+        max-width: 1100px;
+        margin: 0 auto 2.5rem;
+      }
+      .footer-section h3 {
+        font-family: var(--sans);
+        font-size: 0.72rem;
+        letter-spacing: 0.12em;
+        text-transform: uppercase;
+        color: rgba(255, 255, 255, 0.35);
+        margin-bottom: 1rem;
+      }
+      .footer-link {
+        display: block;
+        font-size: 0.88rem;
+        color: rgba(255, 255, 255, 0.6);
+        text-decoration: none;
+        margin-bottom: 0.55rem;
+        transition: color 0.2s;
+      }
+      .footer-link:hover {
+        color: var(--accent-light);
+      }
+      .footer-link.active {
+        color: var(--accent-light);
+      }
+      .footer-bottom {
+        border-top: 1px solid rgba(255, 255, 255, 0.08);
+        padding-top: 1.5rem;
+        text-align: center;
+        font-size: 0.8rem;
+        max-width: 1100px;
+        margin: 0 auto;
+      }
+
+      /* ── RESPONSIVE ─────────────────────────────────────────────── */
+      @media (max-width: 640px) {
+        .nav-links {
+          display: none;
+        }
+        .legal-tabs {
+          padding: 0 1rem;
+        }
+        .legal-wrap {
+          padding: 0 1.25rem;
+        }
+        .contact-card {
+          padding: 1.5rem;
+        }
+      }
+    </style>
+  </head>
+  <body>
+    <!-- NAV -->
+    <nav class="nav">
+      <a href="index.html" class="nav-logo">Vintage Collections</a>
+      <div class="nav-links">
+        <a href="shop.html">Shop</a>
+        <a href="about.html">About</a>
+        <a href="contact.html">Contact</a>
+      </div>
+    </nav>
+
+    <!-- PAGE HEADER -->
+    <header class="page-header">
+      <p class="eyebrow">Vintage Collections · Legal Centre</p>
+      <h1>Our policies,<br /><em>plainly stated</em></h1>
+      <p class="subtitle">
+        We believe in honest trade. That means being clear about how we operate,
+        how we handle your information, and what you can expect when you shop
+        with us.
+      </p>
+      <span class="last-updated">Last updated — June 2025</span>
+    </header>
+
+    <!-- TAB NAV -->
+    <div class="legal-tabs">
+      <a href="#privacy" class="tab-link active">Privacy Policy</a>
+      <a href="#terms" class="tab-link">Terms of Service</a>
+      <a href="#cookies" class="tab-link">Cookie Policy</a>
+      <a href="#returns" class="tab-link">Returns & Refunds</a>
+      <a href="#shipping" class="tab-link">Shipping</a>
+      <a href="#accessibility" class="tab-link">Accessibility</a>
+    </div>
+
+    <div class="legal-wrap">
+      <!-- ── 1. PRIVACY POLICY ──────────────────────────────────── -->
+      <section class="legal-section" id="privacy">
+        <p class="section-label">01 — Privacy Policy</p>
+        <h2>How we use your information</h2>
+
+        <div class="info-box">
+          <p>
+            <strong>Short version:</strong> We collect only what we need to
+            process your orders, improve our service, and keep you updated (if
+            you opt in). We do not sell your data. Ever.
+          </p>
+        </div>
+
+        <h3>1.1 Who we are</h3>
+        <p>
+          Vintage Collections is an e-commerce business based in Nairobi, Kenya,
+          curating pre-loved fashion, electronics, and home goods sourced from
+          Kenyan markets. References to "we", "us", or "our" in this policy
+          refer to Vintage Collections.
+        </p>
+        <p>
+          This policy applies to data collected through
+          <strong>vintage-collectios.vercel.app</strong> and any related
+          services we operate.
+        </p>
+
+        <h3>1.2 What information we collect</h3>
+        <p>
+          We collect information you give us directly and information gathered
+          automatically when you use our site:
+        </p>
+        <ul>
+          <li>
+            <strong>Account & order data:</strong> name, email address, delivery
+            address, phone number, and order history when you make a purchase or
+            create an account.
+          </li>
+          <li>
+            <strong>Payment data:</strong> we do not store full card details.
+            Payments are processed by third-party providers (M-Pesa, Stripe) who
+            maintain their own security and compliance standards.
+          </li>
+          <li>
+            <strong>Communications:</strong> messages you send via our contact
+            form, or replies to our emails.
+          </li>
+          <li>
+            <strong>Usage data:</strong> pages visited, time on site, referring
+            URLs, device type, and browser — collected automatically via cookies
+            and analytics tools.
+          </li>
+          <li>
+            <strong>Marketing opt-in:</strong> email address if you subscribe to
+            our newsletter.
+          </li>
+        </ul>
+
+        <h3>1.3 How we use your information</h3>
+        <table class="legal-table">
+          <thead>
+            <tr>
+              <th>Purpose</th>
+              <th>Legal basis</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr>
+              <td>Processing and delivering your orders</td>
+              <td>Contract performance</td>
+            </tr>
+            <tr>
+              <td>Sending order confirmations and tracking updates</td>
+              <td>Contract performance</td>
+            </tr>
+            <tr>
+              <td>Responding to customer support enquiries</td>
+              <td>Legitimate interests</td>
+            </tr>
+            <tr>
+              <td>Sending marketing emails (if you opted in)</td>
+              <td>Consent</td>
+            </tr>
+            <tr>
+              <td>Analysing site usage to improve our service</td>
+              <td>Legitimate interests</td>
+            </tr>
+            <tr>
+              <td>Fraud prevention and security</td>
+              <td>Legal obligation / Legitimate interests</td>
+            </tr>
+          </tbody>
+        </table>
+
+        <h3>1.4 Sharing your information</h3>
+        <p>We share your data only when necessary to provide our service:</p>
+        <ul>
+          <li>
+            <strong>Delivery partners:</strong> name and address shared with
+            couriers to complete delivery.
+          </li>
+          <li>
+            <strong>Payment processors:</strong> transaction data shared with
+            M-Pesa / Stripe to process payments.
+          </li>
+          <li>
+            <strong>Analytics providers:</strong> anonymised usage data shared
+            with tools such as Google Analytics.
+          </li>
+          <li>
+            <strong>Legal requirements:</strong> we may disclose information if
+            required by Kenyan law or a valid court order.
+          </li>
+        </ul>
+        <p>
+          We do not sell, rent, or trade your personal information to any third
+          party for their own marketing purposes.
+        </p>
+
+        <h3>1.5 Data retention</h3>
+        <p>
+          We retain order and account data for 7 years to comply with Kenyan tax
+          and consumer-protection regulations. Marketing data is retained until
+          you unsubscribe. You may request deletion of any data we are not
+          legally obliged to retain.
+        </p>
+
+        <h3>1.6 Your rights</h3>
+        <p>
+          Under Kenya's Data Protection Act 2019 and applicable international
+          standards, you have the right to:
+        </p>
+        <ul>
+          <li>Access the personal data we hold about you</li>
+          <li>Correct inaccurate or incomplete data</li>
+          <li>
+            Request deletion of your data (subject to legal retention
+            obligations)
+          </li>
+          <li>Object to or restrict certain processing activities</li>
+          <li>Withdraw consent for marketing communications at any time</li>
+          <li>
+            Lodge a complaint with the Office of the Data Protection
+            Commissioner of Kenya
+          </li>
+        </ul>
+
+        <h3>1.7 Security</h3>
+        <p>
+          We use HTTPS encryption across our site, restrict access to personal
+          data to authorised personnel only, and use reputable third-party
+          payment processors who maintain PCI-DSS compliance. No internet
+          transmission is 100% secure; we encourage you to use a strong, unique
+          password for your account.
+        </p>
+      </section>
+
+      <!-- ── 2. TERMS OF SERVICE ────────────────────────────────── -->
+      <section class="legal-section" id="terms">
+        <p class="section-label">02 — Terms of Service</p>
+        <h2>Our agreement with you</h2>
+
+        <div class="info-box">
+          <p>
+            <strong>Short version:</strong> Shop honestly, and we'll do the
+            same. These terms govern purchases made on our site and set out both
+            your rights and ours.
+          </p>
+        </div>
+
+        <h3>2.1 Acceptance of terms</h3>
+        <p>
+          By browsing or purchasing from Vintage Collections you agree to these
+          Terms of Service. If you do not agree, please do not use our site. We
+          may update these terms from time to time; continued use of the site
+          following any changes constitutes acceptance.
+        </p>
+
+        <h3>2.2 Products and listings</h3>
+        <p>
+          All items sold by Vintage Collections are pre-owned ("vintage" or
+          "second-hand") unless explicitly described otherwise. Condition is
+          described as accurately as possible in each listing, including
+          photographs and written condition notes. Minor wear consistent with
+          normal use is not considered a defect in pre-owned goods unless
+          explicitly described as absent.
+        </p>
+        <p>
+          We reserve the right to refuse or cancel any order at our discretion,
+          including where a pricing error has occurred. In such cases, you will
+          be notified and fully refunded.
+        </p>
+
+        <h3>2.3 Pricing and payment</h3>
+        <p>
+          All prices are listed in Kenyan Shillings (KES) and include any
+          applicable taxes. We accept M-Pesa, major debit and credit cards, and
+          other payment methods displayed at checkout. Payment is due in full at
+          the time of purchase. We do not offer credit or buy-now-pay-later
+          arrangements unless explicitly advertised.
+        </p>
+
+        <h3>2.4 Order confirmation</h3>
+        <p>
+          A confirmation email is sent when your order is placed. This does not
+          constitute acceptance of your order — acceptance occurs when your item
+          is dispatched and a shipping confirmation is sent. If we are unable to
+          fulfil your order, we will contact you and issue a full refund within
+          5 business days.
+        </p>
+
+        <h3>2.5 Intellectual property</h3>
+        <p>
+          All content on this site — including photography, copy, branding, and
+          design — is the property of Vintage Collections or its content
+          suppliers and may not be reproduced, distributed, or used without
+          written permission.
+        </p>
+
+        <h3>2.6 Limitation of liability</h3>
+        <p>
+          To the fullest extent permitted by Kenyan law, Vintage Collections
+          shall not be liable for indirect, incidental, or consequential losses
+          arising from use of our site or products. Our maximum liability for
+          any claim related to a purchase shall not exceed the value of that
+          purchase.
+        </p>
+
+        <h3>2.7 Governing law</h3>
+        <p>
+          These terms are governed by the laws of Kenya. Any disputes shall be
+          subject to the exclusive jurisdiction of the courts of Nairobi, Kenya.
+        </p>
+      </section>
+
+      <!-- ── 3. COOKIE POLICY ──────────────────────────────────── -->
+      <section class="legal-section" id="cookies">
+        <p class="section-label">03 — Cookie Policy</p>
+        <h2>Cookies we use and why</h2>
+
+        <div class="info-box">
+          <p>
+            <strong>Short version:</strong> We use cookies to keep your cart
+            intact, remember your preferences, and understand how people use the
+            site. You can control non-essential cookies at any time.
+          </p>
+        </div>
+
+        <h3>3.1 What are cookies?</h3>
+        <p>
+          Cookies are small text files placed on your device by a website. They
+          allow the site to remember information about your visit — such as
+          items in your cart — so you don't have to re-enter it every time.
+        </p>
+
+        <h3>3.2 The cookies we use</h3>
+        <table class="legal-table">
+          <thead>
+            <tr>
+              <th>Category</th>
+              <th>Purpose</th>
+              <th>Can you opt out?</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr>
+              <td><strong>Essential</strong></td>
+              <td>
+                Session management, shopping cart, authentication, security
+                tokens
+              </td>
+              <td>No — required for the site to function</td>
+            </tr>
+            <tr>
+              <td><strong>Functional</strong></td>
+              <td>
+                Remembering your preferences (currency, language, wishlist)
+              </td>
+              <td>Yes</td>
+            </tr>
+            <tr>
+              <td><strong>Analytics</strong></td>
+              <td>
+                Understanding how visitors use the site (Google Analytics —
+                anonymised)
+              </td>
+              <td>Yes</td>
+            </tr>
+            <tr>
+              <td><strong>Marketing</strong></td>
+              <td>
+                Retargeting ads and measuring ad performance (if applicable)
+              </td>
+              <td>Yes</td>
+            </tr>
+          </tbody>
+        </table>
+
+        <h3>3.3 Managing cookies</h3>
+        <p>
+          You can manage cookie preferences through your browser settings.
+          Please note that disabling essential cookies will impair core site
+          functionality such as the shopping cart. For analytics and marketing
+          cookies, you can also use tools such as the Google Analytics Opt-Out
+          Browser Add-on.
+        </p>
+      </section>
+
+      <!-- ── 4. RETURNS & REFUNDS ──────────────────────────────── -->
+      <section class="legal-section" id="returns">
+        <p class="section-label">04 — Returns & Refunds</p>
+        <h2>Something not right? We'll sort it</h2>
+
+        <div class="info-box">
+          <p>
+            <strong>Short version:</strong> You have <strong>14 days</strong> to
+            return an item that was significantly misrepresented. Because our
+            pieces are pre-owned and one-of-a-kind, we ask you to review
+            listings carefully before purchasing.
+          </p>
+        </div>
+
+        <h3>4.1 Return window</h3>
+        <p>
+          You may request a return within <strong>14 calendar days</strong> of
+          receiving your order. To initiate a return, contact us at the email
+          below with your order number and the reason for return.
+        </p>
+
+        <h3>4.2 Eligible returns</h3>
+        <p>We accept returns where:</p>
+        <ul>
+          <li>
+            The item received differs materially from its description or
+            photographs
+          </li>
+          <li>
+            The item arrived damaged in transit (photographic evidence required)
+          </li>
+          <li>The wrong item was sent</li>
+        </ul>
+
+        <h3>4.3 Non-returnable items</h3>
+        <p>
+          Because our items are one-of-a-kind and pre-owned, we cannot accept
+          returns for:
+        </p>
+        <ul>
+          <li>Change of mind after purchase</li>
+          <li>
+            Minor variations in colour due to photography or screen calibration
+          </li>
+          <li>
+            Wear or patina consistent with the condition described in the
+            listing
+          </li>
+          <li>Items that have been used, washed, or altered after delivery</li>
+        </ul>
+
+        <h3>4.4 Refund process</h3>
+        <p>
+          Once we receive and inspect a returned item, we will notify you of the
+          outcome within 3 business days. Approved refunds are processed to your
+          original payment method within <strong>7–10 business days</strong>.
+          Shipping costs for returns are borne by the customer unless the return
+          is due to our error.
+        </p>
+      </section>
+
+      <!-- ── 5. SHIPPING ────────────────────────────────────────── -->
+      <section class="legal-section" id="shipping">
+        <p class="section-label">05 — Shipping</p>
+        <h2>Getting your item to you</h2>
+
+        <h3>5.1 Shipping zones</h3>
+        <p>
+          We currently ship within Kenya only. For international enquiries,
+          contact us directly and we will explore what's possible on a
+          case-by-case basis.
+        </p>
+
+        <h3>5.2 Dispatch times</h3>
+        <p>
+          Orders are dispatched within <strong>1–3 business days</strong> of
+          payment confirmation. You will receive a shipping confirmation with
+          tracking information once your item is collected by our courier
+          partner.
+        </p>
+
+        <h3>5.3 Estimated delivery</h3>
+        <table class="legal-table">
+          <thead>
+            <tr>
+              <th>Zone</th>
+              <th>Estimated time</th>
+              <th>Rate</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr>
+              <td>Nairobi CBD & environs</td>
+              <td>1–2 business days</td>
+              <td>KES 250</td>
+            </tr>
+            <tr>
+              <td>Greater Nairobi</td>
+              <td>2–3 business days</td>
+              <td>KES 350</td>
+            </tr>
+            <tr>
+              <td>Major towns (Mombasa, Kisumu, Nakuru, Eldoret)</td>
+              <td>3–5 business days</td>
+              <td>KES 500</td>
+            </tr>
+            <tr>
+              <td>Other regions</td>
+              <td>4–7 business days</td>
+              <td>KES 600–800</td>
+            </tr>
+          </tbody>
+        </table>
+        <p>
+          Delivery times are estimates and may vary during public holidays or
+          periods of high demand. We are not liable for delays caused by courier
+          partners once an item has been dispatched.
+        </p>
+
+        <h3>5.4 Lost or undelivered items</h3>
+        <p>
+          If your item has not arrived within the estimated window, contact us
+          and we will investigate with our courier partner. Claims for lost
+          items must be raised within <strong>30 days</strong> of the dispatch
+          date.
+        </p>
+      </section>
+
+      <!-- ── 6. ACCESSIBILITY ───────────────────────────────────── -->
+      <section class="legal-section" id="accessibility">
+        <p class="section-label">06 — Accessibility</p>
+        <h2>Shopping should be open to everyone</h2>
+
+        <p>
+          Vintage Collections is committed to making our website accessible to
+          as many people as possible, including those with visual, auditory,
+          cognitive, or motor disabilities.
+        </p>
+
+        <h3>6.1 Our commitment</h3>
+        <p>
+          We aim to meet the Web Content Accessibility Guidelines (WCAG) 2.1 at
+          Level AA. This means we work to ensure our site is:
+        </p>
+        <ul>
+          <li>
+            <strong>Perceivable:</strong> content can be seen, heard, or
+            accessed through assistive technologies
+          </li>
+          <li>
+            <strong>Operable:</strong> all functionality is available via
+            keyboard navigation
+          </li>
+          <li>
+            <strong>Understandable:</strong> content is written in plain
+            language and behaves predictably
+          </li>
+          <li>
+            <strong>Robust:</strong> compatible with current assistive
+            technologies and browsers
+          </li>
+        </ul>
+
+        <h3>6.2 Known limitations</h3>
+        <p>
+          We are a small team and acknowledge that some areas of our site may
+          not yet fully meet accessibility standards, particularly some older
+          product images which may lack detailed alt text. We are actively
+          working to address these gaps.
+        </p>
+
+        <h3>6.3 Contact us about accessibility</h3>
+        <p>
+          If you encounter a barrier on our site or need content in an
+          alternative format, please reach out. We aim to respond to
+          accessibility requests within <strong>5 business days</strong>.
+        </p>
+
+        <!-- Contact card -->
+        <div class="contact-card">
+          <h3>Get in touch</h3>
+          <p>
+            For any questions about these policies, your data, or accessibility:
+          </p>
+          <p>
+            📧
+            <a href="mailto:legal@vintage-collections.co.ke"
+              >legal@vintage-collections.co.ke</a
+            >
+          </p>
+          <p>📍 Nairobi, Kenya</p>
+          <p
+            style="
+              margin-top: 1rem;
+              font-size: 0.82rem;
+              color: rgba(255, 255, 255, 0.4);
+            "
+          >
+            We aim to respond to all legal and privacy enquiries within 5
+            business days.
+          </p>
+        </div>
+      </section>
+    </div>
+    <!-- /legal-wrap -->
+
+    <!-- FOOTER -->
+    <footer class="footer">
+      <div class="footer-grid">
+        <div class="footer-section">
+          <h3>Shop</h3>
+          <a href="shop.html" class="footer-link">All Products</a>
+          <a href="shop.html" class="footer-link">Fashion</a>
+          <a href="shop.html" class="footer-link">Electronics</a>
+          <a href="shop.html" class="footer-link">Home & Living</a>
+        </div>
+        <div class="footer-section">
+          <h3>Company</h3>
+          <a href="about.html" class="footer-link">About Us</a>
+          <a href="blog.html" class="footer-link">Blog</a>
+          <a href="careers.html" class="footer-link">Careers</a>
+          <a href="press.html" class="footer-link">Press</a>
+        </div>
+        <div class="footer-section">
+          <h3>Support</h3>
+          <a href="contact.html" class="footer-link">Contact Us</a>
+          <a href="#" class="footer-link">FAQ</a>
+          <a href="#shipping" class="footer-link">Shipping Info</a>
+          <a href="#returns" class="footer-link">Returns</a>
+        </div>
+        <div class="footer-section">
+          <h3>Legal</h3>
+          <a href="#privacy" class="footer-link active">Privacy Policy</a>
+          <a href="#terms" class="footer-link">Terms of Service</a>
+          <a href="#cookies" class="footer-link">Cookie Policy</a>
+          <a href="#accessibility" class="footer-link">Accessibility</a>
+          <a href="admin-dashboard.html" class="footer-link">Admin</a>
+        </div>
+      </div>
+      <div class="footer-bottom">
+        <p>
+          &copy; 2025 Vintage Collections. All rights reserved. Curated from
+          Kenya with love.
+        </p>
+      </div>
+    </footer>
+
+    <script>
+      // Highlight active tab on scroll
+      const sections = document.querySelectorAll(".legal-section");
+      const tabs = document.querySelectorAll(".tab-link");
+
+      const observer = new IntersectionObserver(
+        (entries) => {
+          entries.forEach((entry) => {
+            if (entry.isIntersecting) {
+              tabs.forEach((t) => t.classList.remove("active"));
+              const id = entry.target.id;
+              const active = document.querySelector(`.tab-link[href="#${id}"]`);
+              if (active) active.classList.add("active");
+            }
+          });
+        },
+        { rootMargin: "-20% 0px -70% 0px" },
+      );
+
+      sections.forEach((s) => observer.observe(s));
+    </script>
+  </body>
+</html>

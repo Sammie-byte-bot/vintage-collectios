@@ -1269,6 +1269,18 @@
           min-width: unset;
         }
       }
+
+      /* Empty state for offers */
+      .empty-state {
+        grid-column: 1 / -1;
+        text-align: center;
+        padding: 48px 24px;
+        color: #8a7d74;
+      }
+      .empty-state p {
+        margin-top: 8px;
+        font-size: 14px;
+      }
     </style>
   </head>
   <body>
@@ -1809,6 +1821,7 @@
         getDocs,
         query,
         where,
+        orderBy,
         limit,
       } from "https://www.gstatic.com/firebasejs/10.7.0/firebase-firestore.js";
       import { firebaseConfig } from "./firebase-config.js";
@@ -1947,8 +1960,7 @@
       function renderStars(rating) {
         let r = Number(rating);
         if (!r || r < 4) {
-          // Generate a friendly 4.0 - 5.0 rating when none is provided
-          r = Math.round((4 + Math.random()) * 2) / 2; // 4, 4.5 or 5
+          r = Math.round((4 + Math.random()) * 2) / 2;
         }
         const fullStars = Math.min(5, Math.round(r));
         const fullStarSvg =
@@ -1983,79 +1995,132 @@
         return pct ? `-${pct}%` : p.discount || "SALE";
       }
 
+      // ─────────────────────────────────────────────────────────────────
+      // FIX 1: Fetch 10 most recent products (ordered by createdAt desc).
+      //        Falls back to a plain limit(10) if createdAt index is missing.
+      // ─────────────────────────────────────────────────────────────────
       async function renderFeaturedProducts() {
-        const q = query(
-          collection(db, "products"),
-          where("bestseller", "==", true),
-          limit(8),
-        );
-        const snap = await getDocs(q);
-        const products = snap.docs.map((d) => ({ id: d.id, ...d.data() }));
-
         const grid = document.getElementById("featured-products");
+        let products = [];
+
+        try {
+          // Try ordered by createdAt descending first
+          const q = query(
+            collection(db, "products"),
+            orderBy("createdAt", "desc"),
+            limit(10),
+          );
+          const snap = await getDocs(q);
+          products = snap.docs.map((d) => ({ id: d.id, ...d.data() }));
+        } catch (err) {
+          // If the index doesn't exist yet, fall back to unordered limit(10)
+          console.warn(
+            "orderBy createdAt failed, falling back to limit(10):",
+            err.message,
+          );
+          try {
+            const q = query(collection(db, "products"), limit(10));
+            const snap = await getDocs(q);
+            products = snap.docs.map((d) => ({ id: d.id, ...d.data() }));
+          } catch (fallbackErr) {
+            console.error("Failed to load featured products:", fallbackErr);
+            grid.innerHTML = `<div class="empty-state"><strong>Could not load products.</strong><p>Please try again later.</p></div>`;
+            return;
+          }
+        }
+
+        if (products.length === 0) {
+          grid.innerHTML = `<div class="empty-state"><strong>No products yet.</strong><p>Check back soon for new arrivals.</p></div>`;
+          return;
+        }
+
         grid.innerHTML = products
           .map((p) => {
             const stars = renderStars(p.rating);
             return `
-          <div class="product-card" onclick="window.location.href='product.html?id=${p.id}'">
-            <div class="product-img-wrap">
-              <img src="${p.images?.[0] || "https://placehold.co/400"}" class="product-image" loading="lazy">
-              <div class="wishlist-badge ${wishlist.includes(p.id) ? "active" : ""}" onclick="toggleProductWishlist(event, '${p.id}')">
-                <svg width="18" height="18" viewBox="0 0 24 24" fill="${wishlist.includes(p.id) ? "currentColor" : "none"}" stroke="currentColor" stroke-width="2">
-                  <path d="M20.84 4.61a5.5 5.5 0 0 0-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 0 0-7.78 7.78l1.06 1.06L12 21.23l7.78-7.78 1.06-1.06a5.5 5.5 0 0 0 0-7.78z"></path>
-                </svg>
-              </div>
-            </div>
-            <div style="padding: 16px;">
-              <div class="product-name">${p.name}</div>
-              <div class="product-seller">${p.seller || "Vintage Collections"}</div>
-              <div class="rating">
-                ${stars.html}
-                <span class="rating-text">${stars.displayRating} (${p.reviews || 0})</span>
-              </div>
-              <div class="price-row">
-                <span class="price">KES ${(p.price || 0).toLocaleString()}</span>
-                ${p.onSale && p.originalPrice ? `<span class="original-price">KES ${p.originalPrice.toLocaleString()}</span>` : ""}
-                ${discountPill(p)}
-              </div>
-            </div>
-          </div>`;
+              <div class="product-card" onclick="window.location.href='product.html?id=${p.id}'">
+                <div class="product-img-wrap">
+                  <img src="${p.images?.[0] || "https://placehold.co/400"}" class="product-image" loading="lazy" alt="${p.name || ""}">
+                  <div class="wishlist-badge ${wishlist.includes(p.id) ? "active" : ""}" onclick="toggleProductWishlist(event, '${p.id}')">
+                    <svg width="18" height="18" viewBox="0 0 24 24" fill="${wishlist.includes(p.id) ? "currentColor" : "none"}" stroke="currentColor" stroke-width="2">
+                      <path d="M20.84 4.61a5.5 5.5 0 0 0-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 0 0-7.78 7.78l1.06 1.06L12 21.23l7.78-7.78 1.06-1.06a5.5 5.5 0 0 0 0-7.78z"></path>
+                    </svg>
+                  </div>
+                </div>
+                <div style="padding: 16px;">
+                  <div class="product-name">${p.name}</div>
+                  <div class="product-seller">${p.seller || "Vintage Collections"}</div>
+                  <div class="rating">
+                    ${stars.html}
+                    <span class="rating-text">${stars.displayRating} (${p.reviews || 0})</span>
+                  </div>
+                  <div class="price-row">
+                    <span class="price">KES ${(p.price || 0).toLocaleString()}</span>
+                    ${p.onSale && p.originalPrice ? `<span class="original-price">KES ${p.originalPrice.toLocaleString()}</span>` : ""}
+                    ${discountPill(p)}
+                  </div>
+                </div>
+              </div>`;
           })
           .join("");
       }
 
+      // ─────────────────────────────────────────────────────────────────
+      // FIX 2: Query products with onSale == true instead of the
+      //        restricted "offers" collection. Gracefully handles
+      //        empty results and any permission/index errors.
+      // ─────────────────────────────────────────────────────────────────
       async function renderOfferProducts() {
-        const snap = await getDocs(query(collection(db, "offers"), limit(8)));
-        const offerProducts = snap.docs.map((d) => ({ id: d.id, ...d.data() }));
-
         const grid = document.getElementById("offer-products");
+        let offerProducts = [];
+
+        try {
+          const q = query(
+            collection(db, "products"),
+            where("onSale", "==", true),
+            limit(8),
+          );
+          const snap = await getDocs(q);
+          offerProducts = snap.docs.map((d) => ({ id: d.id, ...d.data() }));
+        } catch (err) {
+          console.error("Failed to load offer products:", err.message);
+          grid.innerHTML = `<div class="empty-state"><strong>Could not load offers.</strong><p>Please try again later.</p></div>`;
+          return;
+        }
+
+        if (offerProducts.length === 0) {
+          grid.innerHTML = `<div class="empty-state"><strong>No active offers right now.</strong><p>Check back soon — new deals drop every week.</p></div>`;
+          return;
+        }
+
         grid.innerHTML = offerProducts
           .map((p) => {
             const stars = renderStars(p.rating);
             return `
-          <div class="product-card" onclick="window.location.href='product.html?id=${p.id}'">
-            <div class="product-img-wrap">
-              <img src="${p.images?.[0] || "https://placehold.co/400"}" class="product-image" loading="lazy">
-              <div class="offer-badge">${offerBadgeLabel(p)}</div>
-              <div class="wishlist-badge ${wishlist.includes(p.id) ? "active" : ""}" onclick="toggleProductWishlist(event, '${p.id}')">
-                <svg width="18" height="18" viewBox="0 0 24 24" fill="${wishlist.includes(p.id) ? "currentColor" : "none"}" stroke="currentColor" stroke-width="2">
-                  <path d="M20.84 4.61a5.5 5.5 0 0 0-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 0 0-7.78 7.78l1.06 1.06L12 21.23l7.78-7.78 1.06-1.06a5.5 5.5 0 0 0 0-7.78z"></path>
-                </svg>
-              </div>
-            </div>
-            <div style="padding: 16px;">
-              <div class="product-name">${p.name}</div>
-              <div class="product-seller">${p.seller || "Vintage Collections"}</div>
-              <div class="rating">
-                ${stars.html}
-                <span class="rating-text">${stars.displayRating} (${p.reviews || 0})</span>
-              </div>
-              <div class="price-row">
-                <div class="price">KES ${(p.price || 0).toLocaleString()}</div>
-                ${p.originalPrice ? `<div class="original-price">KES ${p.originalPrice.toLocaleString()}</div>` : ""}
-              </div>
-            </div>
-          </div>`;
+              <div class="product-card" onclick="window.location.href='product.html?id=${p.id}'">
+                <div class="product-img-wrap">
+                  <img src="${p.images?.[0] || "https://placehold.co/400"}" class="product-image" loading="lazy" alt="${p.name || ""}">
+                  <div class="offer-badge">${offerBadgeLabel(p)}</div>
+                  <div class="wishlist-badge ${wishlist.includes(p.id) ? "active" : ""}" onclick="toggleProductWishlist(event, '${p.id}')">
+                    <svg width="18" height="18" viewBox="0 0 24 24" fill="${wishlist.includes(p.id) ? "currentColor" : "none"}" stroke="currentColor" stroke-width="2">
+                      <path d="M20.84 4.61a5.5 5.5 0 0 0-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 0 0-7.78 7.78l1.06 1.06L12 21.23l7.78-7.78 1.06-1.06a5.5 5.5 0 0 0 0-7.78z"></path>
+                    </svg>
+                  </div>
+                </div>
+                <div style="padding: 16px;">
+                  <div class="product-name">${p.name}</div>
+                  <div class="product-seller">${p.seller || "Vintage Collections"}</div>
+                  <div class="rating">
+                    ${stars.html}
+                    <span class="rating-text">${stars.displayRating} (${p.reviews || 0})</span>
+                  </div>
+                  <div class="price-row">
+                    <div class="price">KES ${(p.price || 0).toLocaleString()}</div>
+                    ${p.originalPrice ? `<div class="original-price">KES ${p.originalPrice.toLocaleString()}</div>` : ""}
+                    ${discountPill(p)}
+                  </div>
+                </div>
+              </div>`;
           })
           .join("");
       }
@@ -2086,14 +2151,12 @@
 
       window.performSearch = () => {
         const q = document.getElementById("search-input").value.trim();
-        if (q.trim())
-          window.location.href = `shop.html?q=${encodeURIComponent(q)}`;
+        if (q) window.location.href = `shop.html?q=${encodeURIComponent(q)}`;
       };
 
       window.performMobileSearch = () => {
         const q = document.getElementById("mobile-search-input").value.trim();
-        if (q.trim())
-          window.location.href = `shop.html?q=${encodeURIComponent(q)}`;
+        if (q) window.location.href = `shop.html?q=${encodeURIComponent(q)}`;
       };
 
       function renderCategories() {
