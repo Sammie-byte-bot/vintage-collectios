@@ -3,7 +3,7 @@
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>Legal — Vintage Collections</title>
+    <title>Legal — TreasureWave Collections</title>
     <link rel="preconnect" href="https://fonts.googleapis.com" />
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
     <link
@@ -19,7 +19,7 @@
         --charcoal: #1c1c1c;
         --mid-grey: #5a5a5a;
         --light-grey: #d6d0c8;
-        --accent: #8b5e3c; /* warm cognac — echoes leather/market */
+        --accent: #8b5e3c;
         --accent-light: #c49a6c;
         --rule: #e3ddd5;
         --nav-bg: #1c1c1c;
@@ -38,11 +38,9 @@
         margin: 0;
         padding: 0;
       }
-
       html {
         scroll-behavior: smooth;
       }
-
       body {
         background: var(--cream);
         color: var(--charcoal);
@@ -51,83 +49,484 @@
         line-height: 1.75;
       }
 
-      /* ── NAV ────────────────────────────────────────────────────── */
-      .nav {
+      /* ── NAV ── */
+      .nav-bar {
+        background: white;
+        border-bottom: 1px solid var(--light-grey);
+        padding: 0 24px;
         position: sticky;
         top: 0;
-        z-index: 100;
-        background: var(--nav-bg);
+        z-index: 200;
+        height: 64px;
         display: flex;
         align-items: center;
+      }
+      .nav-content {
+        max-width: 1400px;
+        margin: 0 auto;
+        width: 100%;
+        display: flex;
         justify-content: space-between;
-        padding: 0 2rem;
-        height: 60px;
+        align-items: center;
+        gap: 16px;
       }
       .nav-logo {
         font-family: var(--serif);
-        font-size: 1.15rem;
-        color: #fff;
+        font-size: 20px;
+        font-weight: 600;
+        color: var(--charcoal);
+        display: flex;
+        align-items: center;
+        gap: 8px;
         text-decoration: none;
-        letter-spacing: 0.02em;
+        flex-shrink: 0;
+      }
+      .nav-logo svg {
+        color: #d5572a;
+      }
+      .search-bar {
+        display: flex;
+        gap: 8px;
+        flex: 1;
+        max-width: 480px;
+      }
+      .search-input {
+        flex: 1;
+        padding: 9px 16px;
+        border: 1.5px solid var(--light-grey);
+        border-radius: 999px;
+        font-size: 14px;
+        outline: none;
+        transition: border-color 200ms;
+        background: white;
+        color: var(--charcoal);
+        min-width: 0;
+      }
+      .search-input::placeholder {
+        color: #b8a99c;
+      }
+      .search-input:focus {
+        border-color: #d5572a;
+      }
+      .search-btn {
+        background-color: #d5572a;
+        color: white;
+        border: none;
+        border-radius: 999px;
+        width: 40px;
+        height: 40px;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        cursor: pointer;
+        flex-shrink: 0;
+        transition: background-color 200ms;
+      }
+      .search-btn:hover {
+        background-color: #b8451f;
       }
       .nav-links {
         display: flex;
-        gap: 2rem;
+        gap: 20px;
+        align-items: center;
       }
-      .nav-links a {
-        font-size: 0.85rem;
-        color: rgba(255, 255, 255, 0.75);
+      .nav-link {
+        color: var(--charcoal);
         text-decoration: none;
-        letter-spacing: 0.06em;
-        text-transform: uppercase;
-        transition: color 0.2s;
+        font-size: 14px;
+        font-weight: 500;
+        transition: color 200ms;
+        white-space: nowrap;
       }
-      .nav-links a:hover {
-        color: var(--accent-light);
+      .nav-link:hover {
+        color: #d5572a;
+      }
+      .nav-link.active {
+        color: #d5572a;
+        border-bottom: 2px solid #d5572a;
+        padding-bottom: 2px;
+      }
+      .nav-icons {
+        display: flex;
+        gap: 4px;
+        align-items: center;
+      }
+      .icon-btn {
+        background: none;
+        border: none;
+        cursor: pointer;
+        color: var(--charcoal);
+        transition: color 200ms;
+        padding: 8px;
+        position: relative;
+        border-radius: 8px;
+      }
+      .icon-btn:hover {
+        color: #d5572a;
+        background: #fdf3ee;
+      }
+      .cart-badge {
+        position: absolute;
+        top: 2px;
+        right: 2px;
+        background: #d5572a;
+        color: white;
+        border-radius: 50%;
+        width: 17px;
+        height: 17px;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        font-size: 10px;
+        font-weight: 700;
+      }
+      .hamburger-btn {
+        display: none;
+        background: none;
+        border: none;
+        cursor: pointer;
+        color: var(--charcoal);
+        padding: 8px;
+        border-radius: 8px;
+        flex-shrink: 0;
+      }
+      .hamburger-btn:hover {
+        background: #fdf3ee;
+      }
+      .desktop-wishlist {
+        display: flex;
       }
 
-      /* ── HERO / PAGE HEADER ─────────────────────────────────────── */
-      .page-header {
-        background: var(--charcoal);
-        color: #fff;
-        padding: 4rem 2rem 3.5rem;
-        text-align: center;
+      /* Mobile Nav */
+      .mobile-nav-overlay {
+        display: none;
+        position: fixed;
+        inset: 0;
+        background: rgba(44, 38, 36, 0.5);
+        z-index: 300;
       }
+      .mobile-nav-drawer {
+        position: fixed;
+        top: 0;
+        right: 0;
+        width: 280px;
+        height: 100vh;
+        background: white;
+        z-index: 400;
+        padding: 24px;
+        transform: translateX(100%);
+        transition: transform 300ms ease;
+        overflow-y: auto;
+      }
+      .mobile-nav-drawer.open {
+        transform: translateX(0);
+      }
+      .mobile-nav-overlay.open {
+        display: block;
+      }
+      .drawer-close {
+        display: flex;
+        justify-content: flex-end;
+        margin-bottom: 24px;
+      }
+      .close-btn {
+        background: none;
+        border: none;
+        cursor: pointer;
+        color: var(--charcoal);
+        padding: 8px;
+        border-radius: 8px;
+      }
+      .close-btn:hover {
+        background: #fdf3ee;
+        color: #d5572a;
+      }
+      .drawer-links {
+        display: flex;
+        flex-direction: column;
+        gap: 4px;
+        margin-bottom: 24px;
+      }
+      .drawer-link {
+        display: block;
+        padding: 12px 16px;
+        color: var(--charcoal);
+        text-decoration: none;
+        font-size: 15px;
+        font-weight: 500;
+        border-radius: 10px;
+        transition: all 200ms;
+      }
+      .drawer-link:hover,
+      .drawer-link.active {
+        background: #fdf3ee;
+        color: #d5572a;
+      }
+      .drawer-divider {
+        height: 1px;
+        background: var(--light-grey);
+        margin: 16px 0;
+      }
+      .drawer-action {
+        display: flex;
+        align-items: center;
+        gap: 10px;
+        padding: 12px 16px;
+        color: var(--charcoal);
+        font-size: 15px;
+        font-weight: 500;
+        border-radius: 10px;
+        cursor: pointer;
+        transition: all 200ms;
+        background: none;
+        border: none;
+        width: 100%;
+        text-align: left;
+      }
+      .drawer-action:hover {
+        background: #fdf3ee;
+        color: #d5572a;
+      }
+
+      /* Mobile search */
+      .mobile-search-bar {
+        display: none;
+        padding: 10px 16px;
+        background: white;
+        border-bottom: 1px solid var(--light-grey);
+      }
+      .mobile-search-inner {
+        display: flex;
+        gap: 8px;
+      }
+
+      @media (max-width: 860px) {
+        .desktop-wishlist {
+          display: none !important;
+        }
+        .nav-links,
+        .search-bar {
+          display: none !important;
+        }
+        .hamburger-btn {
+          display: flex !important;
+        }
+        .mobile-search-bar {
+          display: block !important;
+        }
+      }
+
+      /* ── PAGE HEADER — full-bleed background image hero ─────────── */
+      .page-header {
+        position: relative;
+        min-height: 560px;
+        display: flex;
+        align-items: center;
+        overflow: hidden;
+        isolation: isolate;
+      }
+
+      /* The actual <img> sits behind everything as a true background */
+      .page-header .bg-img {
+        position: absolute;
+        inset: 0;
+        width: 100%;
+        height: 100%;
+        object-fit: cover;
+        object-position: center 30%;
+        display: block;
+        z-index: -2;
+        transition: transform 8s ease;
+      }
+      .page-header:hover .bg-img {
+        transform: scale(1.05);
+      }
+
+      /* Multi-layer overlay: dark left-to-centre wash + warm cognac tint */
+      .page-header::before {
+        content: "";
+        position: absolute;
+        inset: 0;
+        z-index: -1;
+        background:
+          /* dark gradient from left, fades to transparent at right */
+          linear-gradient(
+            105deg,
+            rgba(18, 13, 10, 0.88) 0%,
+            rgba(18, 13, 10, 0.72) 40%,
+            rgba(18, 13, 10, 0.3) 70%,
+            rgba(18, 13, 10, 0.1) 100%
+          ),
+          /* warm cognac tint over the whole image */
+          linear-gradient(
+              0deg,
+              rgba(139, 80, 40, 0.3) 0%,
+              rgba(139, 80, 40, 0.1) 100%
+            );
+      }
+
+      /* Fallback gradient background (shown if image fails) */
+      .page-header.img-failed {
+        background: linear-gradient(
+          135deg,
+          #1c1008 0%,
+          #3d2b1f 40%,
+          #6b3f28 75%,
+          #8b5e3c 100%
+        );
+      }
+
+      /* Text content — left-aligned over the image */
+      .header-content {
+        position: relative;
+        z-index: 1;
+        width: 100%;
+        max-width: 680px;
+        padding: 5.5rem 3rem 5.5rem 6rem;
+        color: #fff;
+      }
+
       .page-header .eyebrow {
-        font-size: 0.75rem;
-        letter-spacing: 0.14em;
+        font-size: 0.72rem;
+        letter-spacing: 0.18em;
         text-transform: uppercase;
         color: var(--accent-light);
-        margin-bottom: 1rem;
+        margin-bottom: 1.25rem;
+        display: flex;
+        align-items: center;
+        gap: 10px;
       }
+      .page-header .eyebrow::before {
+        content: "";
+        display: inline-block;
+        width: 28px;
+        height: 1px;
+        background: var(--accent-light);
+        flex-shrink: 0;
+      }
+
       .page-header h1 {
         font-family: var(--serif);
-        font-size: clamp(2rem, 5vw, 3.25rem);
+        font-size: clamp(2.2rem, 5vw, 3.4rem);
         font-weight: 400;
-        line-height: 1.2;
-        margin-bottom: 1rem;
+        line-height: 1.18;
+        margin-bottom: 1.25rem;
+        text-shadow: 0 2px 20px rgba(0, 0, 0, 0.4);
       }
       .page-header h1 em {
         font-style: italic;
         color: var(--accent-light);
       }
+
       .page-header .subtitle {
-        color: rgba(255, 255, 255, 0.6);
+        color: rgba(255, 255, 255, 0.65);
         font-size: 0.95rem;
-        max-width: 520px;
-        margin: 0 auto 2rem;
-      }
-      .last-updated {
-        display: inline-block;
-        border: 1px solid rgba(255, 255, 255, 0.2);
-        border-radius: 2rem;
-        padding: 0.35rem 1rem;
-        font-size: 0.78rem;
-        color: rgba(255, 255, 255, 0.5);
-        letter-spacing: 0.04em;
+        line-height: 1.75;
+        max-width: 460px;
+        margin-bottom: 2.25rem;
       }
 
-      /* ── STICKY NAV TABS ────────────────────────────────────────── */
+      .last-updated {
+        display: inline-flex;
+        align-items: center;
+        gap: 8px;
+        border: 1px solid rgba(255, 255, 255, 0.2);
+        border-radius: 2rem;
+        padding: 0.4rem 1.1rem;
+        font-size: 0.77rem;
+        color: rgba(255, 255, 255, 0.45);
+        letter-spacing: 0.05em;
+        width: fit-content;
+        backdrop-filter: blur(4px);
+        background: rgba(255, 255, 255, 0.05);
+      }
+      .last-updated::before {
+        content: "";
+        width: 6px;
+        height: 6px;
+        border-radius: 50%;
+        background: var(--accent-light);
+        display: inline-block;
+        flex-shrink: 0;
+      }
+
+      /* Floating badge — bottom-right corner of the hero */
+      .img-badge {
+        position: absolute;
+        bottom: 28px;
+        right: 36px;
+        background: rgba(255, 255, 255, 0.92);
+        backdrop-filter: blur(8px);
+        border-radius: 10px;
+        padding: 12px 18px;
+        display: flex;
+        align-items: center;
+        gap: 12px;
+        z-index: 2;
+        box-shadow: 0 6px 28px rgba(0, 0, 0, 0.22);
+      }
+      .img-badge-icon {
+        width: 38px;
+        height: 38px;
+        background: var(--accent);
+        border-radius: 8px;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        color: white;
+        flex-shrink: 0;
+      }
+      .img-badge-text {
+        display: flex;
+        flex-direction: column;
+      }
+      .img-badge-text strong {
+        font-size: 0.83rem;
+        color: var(--charcoal);
+        font-weight: 600;
+        line-height: 1.2;
+      }
+      .img-badge-text span {
+        font-size: 0.72rem;
+        color: var(--mid-grey);
+        line-height: 1.3;
+      }
+
+      @media (max-width: 860px) {
+        .page-header {
+          min-height: 440px;
+          align-items: flex-end;
+        }
+        .header-content {
+          padding: 3rem 1.5rem 3rem 1.5rem;
+          max-width: 100%;
+        }
+        /* On mobile deepen the overlay so text is always readable */
+        .page-header::before {
+          background:
+            linear-gradient(
+              180deg,
+              rgba(18, 13, 10, 0.3) 0%,
+              rgba(18, 13, 10, 0.82) 60%,
+              rgba(18, 13, 10, 0.92) 100%
+            ),
+            linear-gradient(0deg, rgba(139, 80, 40, 0.3) 0%, transparent 100%);
+        }
+        .img-badge {
+          bottom: auto;
+          top: 16px;
+          right: 16px;
+          padding: 8px 12px;
+          gap: 8px;
+        }
+        .img-badge-icon {
+          width: 30px;
+          height: 30px;
+          border-radius: 6px;
+        }
+      }
+
+      /* ── STICKY TAB NAV ── */
       .legal-tabs {
         position: sticky;
         top: 60px;
@@ -162,14 +561,14 @@
         border-bottom-color: var(--accent);
       }
 
-      /* ── LAYOUT ─────────────────────────────────────────────────── */
+      /* ── LAYOUT ── */
       .legal-wrap {
         max-width: var(--max-w);
         margin: 0 auto;
         padding: 0 2rem;
       }
 
-      /* ── LEGAL SECTIONS ─────────────────────────────────────────── */
+      /* ── LEGAL SECTIONS ── */
       .legal-section {
         padding: var(--section-gap) 0;
         border-bottom: 1px solid var(--rule);
@@ -177,7 +576,6 @@
       .legal-section:last-child {
         border-bottom: none;
       }
-
       .section-label {
         font-size: 0.72rem;
         letter-spacing: 0.14em;
@@ -214,8 +612,6 @@
       .legal-section ul li {
         margin-bottom: 0.4rem;
       }
-
-      /* Highlight box */
       .info-box {
         background: var(--warm-white);
         border-left: 3px solid var(--accent);
@@ -231,8 +627,6 @@
       .info-box strong {
         color: var(--charcoal);
       }
-
-      /* Table */
       .legal-table {
         width: 100%;
         border-collapse: collapse;
@@ -256,8 +650,6 @@
       .legal-table tr:last-child td {
         border-bottom: none;
       }
-
-      /* Contact card */
       .contact-card {
         background: var(--charcoal);
         color: #fff;
@@ -285,7 +677,7 @@
         text-decoration: underline;
       }
 
-      /* ── FOOTER ─────────────────────────────────────────────────── */
+      /* ── FOOTER ── */
       .footer {
         background: var(--charcoal);
         color: rgba(255, 255, 255, 0.55);
@@ -330,11 +722,7 @@
         margin: 0 auto;
       }
 
-      /* ── RESPONSIVE ─────────────────────────────────────────────── */
       @media (max-width: 640px) {
-        .nav-links {
-          display: none;
-        }
         .legal-tabs {
           padding: 0 1rem;
         }
@@ -348,26 +736,283 @@
     </style>
   </head>
   <body>
-    <!-- NAV -->
-    <nav class="nav">
-      <a href="index.html" class="nav-logo">Vintage Collections</a>
-      <div class="nav-links">
-        <a href="shop.html">Shop</a>
-        <a href="about.html">About</a>
-        <a href="contact.html">Contact</a>
+    <!-- NAV BAR -->
+    <nav class="nav-bar">
+      <div class="nav-content">
+        <a href="index.html" class="nav-logo">
+          <svg
+            viewBox="0 0 24 24"
+            fill="none"
+            stroke="currentColor"
+            stroke-width="2"
+            width="22"
+            height="22"
+          >
+            <path d="M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"></path>
+            <polyline points="9 22 9 12 15 12 15 22"></polyline>
+          </svg>
+          <span>TreasureWave Collections</span>
+        </a>
+        <div class="search-bar">
+          <input
+            type="text"
+            class="search-input"
+            id="search-input"
+            placeholder="Search treasures..."
+          />
+          <button class="search-btn" onclick="performSearch()">
+            <svg
+              viewBox="0 0 24 24"
+              fill="none"
+              stroke="currentColor"
+              stroke-width="2"
+              width="16"
+              height="16"
+            >
+              <circle cx="11" cy="11" r="8"></circle>
+              <path d="m21 21-4.35-4.35"></path>
+            </svg>
+          </button>
+        </div>
+        <div class="nav-links">
+          <a href="shop.html" class="nav-link">Shop</a>
+          <a href="about.html" class="nav-link">About</a>
+          <a href="contact.html" class="nav-link">Contact</a>
+        </div>
+        <div class="nav-icons">
+          <button class="icon-btn" onclick="goToAccount()" title="Account">
+            <svg
+              viewBox="0 0 24 24"
+              fill="none"
+              stroke="currentColor"
+              stroke-width="2"
+              width="20"
+              height="20"
+            >
+              <path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"></path>
+              <circle cx="12" cy="7" r="4"></circle>
+            </svg>
+          </button>
+          <button
+            class="icon-btn desktop-wishlist"
+            onclick="toggleWishlistPanel()"
+            title="Wishlist"
+          >
+            <svg
+              viewBox="0 0 24 24"
+              fill="none"
+              stroke="currentColor"
+              stroke-width="2"
+              width="20"
+              height="20"
+            >
+              <path
+                d="M20.84 4.61a5.5 5.5 0 0 0-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 0 0-7.78 7.78l1.06 1.06L12 21.23l7.78-7.78 1.06-1.06a5.5 5.5 0 0 0 0-7.78z"
+              ></path>
+            </svg>
+            <span
+              class="cart-badge"
+              id="wishlist-count"
+              style="background: #d9a648"
+              >0</span
+            >
+          </button>
+          <button class="icon-btn" onclick="goToCart()" title="Cart">
+            <svg
+              viewBox="0 0 24 24"
+              fill="none"
+              stroke="currentColor"
+              stroke-width="2"
+              width="20"
+              height="20"
+            >
+              <circle cx="9" cy="21" r="1"></circle>
+              <circle cx="20" cy="21" r="1"></circle>
+              <path
+                d="M1 1h4l2.68 13.39a2 2 0 0 0 2 1.61h9.72a2 2 0 0 0 2-1.61L23 6H6"
+              ></path>
+            </svg>
+            <span class="cart-badge" id="cart-count">0</span>
+          </button>
+          <button class="hamburger-btn" onclick="openMobileNav()" title="Menu">
+            <svg
+              viewBox="0 0 24 24"
+              fill="none"
+              stroke="currentColor"
+              stroke-width="2"
+              width="22"
+              height="22"
+            >
+              <line x1="3" y1="6" x2="21" y2="6"></line>
+              <line x1="3" y1="12" x2="21" y2="12"></line>
+              <line x1="3" y1="18" x2="21" y2="18"></line>
+            </svg>
+          </button>
+        </div>
       </div>
     </nav>
 
-    <!-- PAGE HEADER -->
-    <header class="page-header">
-      <p class="eyebrow">Vintage Collections · Legal Centre</p>
-      <h1>Our policies,<br /><em>plainly stated</em></h1>
-      <p class="subtitle">
-        We believe in honest trade. That means being clear about how we operate,
-        how we handle your information, and what you can expect when you shop
-        with us.
-      </p>
-      <span class="last-updated">Last updated — June 2025</span>
+    <!-- Mobile Search -->
+    <div class="mobile-search-bar">
+      <div class="mobile-search-inner">
+        <input
+          type="text"
+          class="search-input"
+          id="mobile-search-input"
+          placeholder="Search treasures..."
+          style="flex: 1"
+        />
+        <button class="search-btn" onclick="performMobileSearch()">
+          <svg
+            viewBox="0 0 24 24"
+            fill="none"
+            stroke="currentColor"
+            stroke-width="2"
+            width="16"
+            height="16"
+          >
+            <circle cx="11" cy="11" r="8"></circle>
+            <path d="m21 21-4.35-4.35"></path>
+          </svg>
+        </button>
+      </div>
+    </div>
+
+    <!-- Mobile Nav Drawer -->
+    <div
+      class="mobile-nav-overlay"
+      id="mobile-nav-overlay"
+      onclick="closeMobileNav()"
+    ></div>
+    <div class="mobile-nav-drawer" id="mobile-nav-drawer">
+      <div class="drawer-close">
+        <button class="close-btn" onclick="closeMobileNav()">
+          <svg
+            viewBox="0 0 24 24"
+            fill="none"
+            stroke="currentColor"
+            stroke-width="2"
+            width="22"
+            height="22"
+          >
+            <line x1="18" y1="6" x2="6" y2="18"></line>
+            <line x1="6" y1="6" x2="18" y2="18"></line>
+          </svg>
+        </button>
+      </div>
+      <div class="drawer-links">
+        <a href="index.html" class="drawer-link">Home</a>
+        <a href="shop.html" class="drawer-link">Shop</a>
+        <a href="about.html" class="drawer-link">About</a>
+        <a href="contact.html" class="drawer-link">Contact</a>
+      </div>
+      <div class="drawer-divider"></div>
+      <button
+        class="drawer-action"
+        onclick="
+          goToAccount();
+          closeMobileNav();
+        "
+      >
+        <svg
+          viewBox="0 0 24 24"
+          fill="none"
+          stroke="currentColor"
+          stroke-width="2"
+          width="18"
+          height="18"
+        >
+          <path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"></path>
+          <circle cx="12" cy="7" r="4"></circle></svg
+        >My Account
+      </button>
+      <button
+        class="drawer-action"
+        onclick="
+          toggleWishlistPanel();
+          closeMobileNav();
+        "
+      >
+        <svg
+          viewBox="0 0 24 24"
+          fill="none"
+          stroke="currentColor"
+          stroke-width="2"
+          width="18"
+          height="18"
+        >
+          <path
+            d="M20.84 4.61a5.5 5.5 0 0 0-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 0 0-7.78 7.78l1.06 1.06L12 21.23l7.78-7.78 1.06-1.06a5.5 5.5 0 0 0 0-7.78z"
+          ></path></svg
+        >Wishlist
+      </button>
+      <button
+        class="drawer-action"
+        onclick="
+          goToCart();
+          closeMobileNav();
+        "
+      >
+        <svg
+          viewBox="0 0 24 24"
+          fill="none"
+          stroke="currentColor"
+          stroke-width="2"
+          width="18"
+          height="18"
+        >
+          <circle cx="9" cy="21" r="1"></circle>
+          <circle cx="20" cy="21" r="1"></circle>
+          <path
+            d="M1 1h4l2.68 13.39a2 2 0 0 0 2 1.61h9.72a2 2 0 0 0 2-1.61L23 6H6"
+          ></path></svg
+        >Cart
+      </button>
+    </div>
+
+    <!-- ══════════════ PAGE HEADER — full-bleed hero ══════════════ -->
+    <header class="page-header" id="pageHeader">
+      <!-- Background image — positioned absolute behind overlay and text -->
+      <img
+        id="heroImg"
+        class="bg-img"
+        src="https://images.unsplash.com/photo-1558769132-cb1aea458c5e?w=1400&auto=format&fit=crop&q=80"
+        alt="Colourful second-hand clothing on hangers at a market stall"
+        loading="eager"
+        fetchpriority="high"
+      />
+
+      <!-- Text content sits on top of image + overlay -->
+      <div class="header-content">
+        <p class="eyebrow">TreasureWave Collections · Legal Centre</p>
+        <h1>Our policies,<br /><em>plainly stated</em></h1>
+        <p class="subtitle">
+          We believe in honest trade. That means being clear about how we
+          operate, how we handle your information, and what you can expect when
+          you shop with us.
+        </p>
+        <span class="last-updated">Last updated — June 2025</span>
+      </div>
+
+      <!-- Floating badge — bottom-right corner -->
+      <div class="img-badge">
+        <div class="img-badge-icon">
+          <svg
+            viewBox="0 0 24 24"
+            fill="none"
+            stroke="currentColor"
+            stroke-width="2"
+            width="18"
+            height="18"
+          >
+            <path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"></path>
+          </svg>
+        </div>
+        <div class="img-badge-text">
+          <strong>Trusted &amp; Transparent</strong>
+          <span>Clear policies, honest trade</span>
+        </div>
+      </div>
     </header>
 
     <!-- TAB NAV -->
@@ -375,17 +1020,16 @@
       <a href="#privacy" class="tab-link active">Privacy Policy</a>
       <a href="#terms" class="tab-link">Terms of Service</a>
       <a href="#cookies" class="tab-link">Cookie Policy</a>
-      <a href="#returns" class="tab-link">Returns & Refunds</a>
+      <a href="#returns" class="tab-link">Returns &amp; Refunds</a>
       <a href="#shipping" class="tab-link">Shipping</a>
       <a href="#accessibility" class="tab-link">Accessibility</a>
     </div>
 
     <div class="legal-wrap">
-      <!-- ── 1. PRIVACY POLICY ──────────────────────────────────── -->
+      <!-- 1. PRIVACY POLICY -->
       <section class="legal-section" id="privacy">
         <p class="section-label">01 — Privacy Policy</p>
         <h2>How we use your information</h2>
-
         <div class="info-box">
           <p>
             <strong>Short version:</strong> We collect only what we need to
@@ -393,30 +1037,24 @@
             you opt in). We do not sell your data. Ever.
           </p>
         </div>
-
         <h3>1.1 Who we are</h3>
         <p>
-          Vintage Collections is an e-commerce business based in Nairobi, Kenya,
-          curating pre-loved fashion, electronics, and home goods sourced from
-          Kenyan markets. References to "we", "us", or "our" in this policy
-          refer to Vintage Collections.
+          TreasureWave Collections is an e-commerce business based in Nairobi,
+          Kenya, curating pre-loved fashion, electronics, and home goods sourced
+          from Kenyan markets. References to "we", "us", or "our" in this policy
+          refer to TreasureWave Collections.
         </p>
         <p>
           This policy applies to data collected through
-          <strong>vintage-collectios.vercel.app</strong> and any related
+          <strong>treasurewave-collections.vercel.app</strong> and any related
           services we operate.
         </p>
-
         <h3>1.2 What information we collect</h3>
-        <p>
-          We collect information you give us directly and information gathered
-          automatically when you use our site:
-        </p>
         <ul>
           <li>
-            <strong>Account & order data:</strong> name, email address, delivery
-            address, phone number, and order history when you make a purchase or
-            create an account.
+            <strong>Account &amp; order data:</strong> name, email address,
+            delivery address, phone number, and order history when you make a
+            purchase or create an account.
           </li>
           <li>
             <strong>Payment data:</strong> we do not store full card details.
@@ -437,7 +1075,6 @@
             our newsletter.
           </li>
         </ul>
-
         <h3>1.3 How we use your information</h3>
         <table class="legal-table">
           <thead>
@@ -473,9 +1110,7 @@
             </tr>
           </tbody>
         </table>
-
         <h3>1.4 Sharing your information</h3>
-        <p>We share your data only when necessary to provide our service:</p>
         <ul>
           <li>
             <strong>Delivery partners:</strong> name and address shared with
@@ -498,7 +1133,6 @@
           We do not sell, rent, or trade your personal information to any third
           party for their own marketing purposes.
         </p>
-
         <h3>1.5 Data retention</h3>
         <p>
           We retain order and account data for 7 years to comply with Kenyan tax
@@ -506,12 +1140,7 @@
           you unsubscribe. You may request deletion of any data we are not
           legally obliged to retain.
         </p>
-
         <h3>1.6 Your rights</h3>
-        <p>
-          Under Kenya's Data Protection Act 2019 and applicable international
-          standards, you have the right to:
-        </p>
         <ul>
           <li>Access the personal data we hold about you</li>
           <li>Correct inaccurate or incomplete data</li>
@@ -526,7 +1155,6 @@
             Commissioner of Kenya
           </li>
         </ul>
-
         <h3>1.7 Security</h3>
         <p>
           We use HTTPS encryption across our site, restrict access to personal
@@ -537,11 +1165,10 @@
         </p>
       </section>
 
-      <!-- ── 2. TERMS OF SERVICE ────────────────────────────────── -->
+      <!-- 2. TERMS OF SERVICE -->
       <section class="legal-section" id="terms">
         <p class="section-label">02 — Terms of Service</p>
         <h2>Our agreement with you</h2>
-
         <div class="info-box">
           <p>
             <strong>Short version:</strong> Shop honestly, and we'll do the
@@ -549,19 +1176,17 @@
             your rights and ours.
           </p>
         </div>
-
         <h3>2.1 Acceptance of terms</h3>
         <p>
-          By browsing or purchasing from Vintage Collections you agree to these
-          Terms of Service. If you do not agree, please do not use our site. We
-          may update these terms from time to time; continued use of the site
-          following any changes constitutes acceptance.
+          By browsing or purchasing from TreasureWave Collections you agree to
+          these Terms of Service. If you do not agree, please do not use our
+          site. We may update these terms from time to time; continued use of
+          the site following any changes constitutes acceptance.
         </p>
-
         <h3>2.2 Products and listings</h3>
         <p>
-          All items sold by Vintage Collections are pre-owned ("vintage" or
-          "second-hand") unless explicitly described otherwise. Condition is
+          All items sold by TreasureWave Collections are pre-owned ("treasures"
+          or "second-hand") unless explicitly described otherwise. Condition is
           described as accurately as possible in each listing, including
           photographs and written condition notes. Minor wear consistent with
           normal use is not considered a defect in pre-owned goods unless
@@ -572,16 +1197,13 @@
           including where a pricing error has occurred. In such cases, you will
           be notified and fully refunded.
         </p>
-
         <h3>2.3 Pricing and payment</h3>
         <p>
           All prices are listed in Kenyan Shillings (KES) and include any
           applicable taxes. We accept M-Pesa, major debit and credit cards, and
           other payment methods displayed at checkout. Payment is due in full at
-          the time of purchase. We do not offer credit or buy-now-pay-later
-          arrangements unless explicitly advertised.
+          the time of purchase.
         </p>
-
         <h3>2.4 Order confirmation</h3>
         <p>
           A confirmation email is sent when your order is placed. This does not
@@ -590,24 +1212,21 @@
           fulfil your order, we will contact you and issue a full refund within
           5 business days.
         </p>
-
         <h3>2.5 Intellectual property</h3>
         <p>
           All content on this site — including photography, copy, branding, and
-          design — is the property of Vintage Collections or its content
+          design — is the property of TreasureWave Collections or its content
           suppliers and may not be reproduced, distributed, or used without
           written permission.
         </p>
-
         <h3>2.6 Limitation of liability</h3>
         <p>
-          To the fullest extent permitted by Kenyan law, Vintage Collections
-          shall not be liable for indirect, incidental, or consequential losses
-          arising from use of our site or products. Our maximum liability for
-          any claim related to a purchase shall not exceed the value of that
-          purchase.
+          To the fullest extent permitted by Kenyan law, TreasureWave
+          Collections shall not be liable for indirect, incidental, or
+          consequential losses arising from use of our site or products. Our
+          maximum liability for any claim related to a purchase shall not exceed
+          the value of that purchase.
         </p>
-
         <h3>2.7 Governing law</h3>
         <p>
           These terms are governed by the laws of Kenya. Any disputes shall be
@@ -615,11 +1234,10 @@
         </p>
       </section>
 
-      <!-- ── 3. COOKIE POLICY ──────────────────────────────────── -->
+      <!-- 3. COOKIE POLICY -->
       <section class="legal-section" id="cookies">
         <p class="section-label">03 — Cookie Policy</p>
         <h2>Cookies we use and why</h2>
-
         <div class="info-box">
           <p>
             <strong>Short version:</strong> We use cookies to keep your cart
@@ -627,14 +1245,12 @@
             site. You can control non-essential cookies at any time.
           </p>
         </div>
-
         <h3>3.1 What are cookies?</h3>
         <p>
           Cookies are small text files placed on your device by a website. They
           allow the site to remember information about your visit — such as
           items in your cart — so you don't have to re-enter it every time.
         </p>
-
         <h3>3.2 The cookies we use</h3>
         <table class="legal-table">
           <thead>
@@ -677,7 +1293,6 @@
             </tr>
           </tbody>
         </table>
-
         <h3>3.3 Managing cookies</h3>
         <p>
           You can manage cookie preferences through your browser settings.
@@ -688,11 +1303,10 @@
         </p>
       </section>
 
-      <!-- ── 4. RETURNS & REFUNDS ──────────────────────────────── -->
+      <!-- 4. RETURNS & REFUNDS -->
       <section class="legal-section" id="returns">
-        <p class="section-label">04 — Returns & Refunds</p>
+        <p class="section-label">04 — Returns &amp; Refunds</p>
         <h2>Something not right? We'll sort it</h2>
-
         <div class="info-box">
           <p>
             <strong>Short version:</strong> You have <strong>14 days</strong> to
@@ -701,16 +1315,13 @@
             listings carefully before purchasing.
           </p>
         </div>
-
         <h3>4.1 Return window</h3>
         <p>
           You may request a return within <strong>14 calendar days</strong> of
           receiving your order. To initiate a return, contact us at the email
           below with your order number and the reason for return.
         </p>
-
         <h3>4.2 Eligible returns</h3>
-        <p>We accept returns where:</p>
         <ul>
           <li>
             The item received differs materially from its description or
@@ -721,12 +1332,7 @@
           </li>
           <li>The wrong item was sent</li>
         </ul>
-
         <h3>4.3 Non-returnable items</h3>
-        <p>
-          Because our items are one-of-a-kind and pre-owned, we cannot accept
-          returns for:
-        </p>
         <ul>
           <li>Change of mind after purchase</li>
           <li>
@@ -738,7 +1344,6 @@
           </li>
           <li>Items that have been used, washed, or altered after delivery</li>
         </ul>
-
         <h3>4.4 Refund process</h3>
         <p>
           Once we receive and inspect a returned item, we will notify you of the
@@ -749,18 +1354,16 @@
         </p>
       </section>
 
-      <!-- ── 5. SHIPPING ────────────────────────────────────────── -->
+      <!-- 5. SHIPPING -->
       <section class="legal-section" id="shipping">
         <p class="section-label">05 — Shipping</p>
-        <h2>Getting your item to you</h2>
-
+        <h2>Getting your treasure to you</h2>
         <h3>5.1 Shipping zones</h3>
         <p>
           We currently ship within Kenya only. For international enquiries,
           contact us directly and we will explore what's possible on a
           case-by-case basis.
         </p>
-
         <h3>5.2 Dispatch times</h3>
         <p>
           Orders are dispatched within <strong>1–3 business days</strong> of
@@ -768,7 +1371,6 @@
           tracking information once your item is collected by our courier
           partner.
         </p>
-
         <h3>5.3 Estimated delivery</h3>
         <table class="legal-table">
           <thead>
@@ -780,7 +1382,7 @@
           </thead>
           <tbody>
             <tr>
-              <td>Nairobi CBD & environs</td>
+              <td>Nairobi CBD &amp; environs</td>
               <td>1–2 business days</td>
               <td>KES 250</td>
             </tr>
@@ -806,7 +1408,6 @@
           periods of high demand. We are not liable for delays caused by courier
           partners once an item has been dispatched.
         </p>
-
         <h3>5.4 Lost or undelivered items</h3>
         <p>
           If your item has not arrived within the estimated window, contact us
@@ -816,22 +1417,16 @@
         </p>
       </section>
 
-      <!-- ── 6. ACCESSIBILITY ───────────────────────────────────── -->
+      <!-- 6. ACCESSIBILITY -->
       <section class="legal-section" id="accessibility">
         <p class="section-label">06 — Accessibility</p>
         <h2>Shopping should be open to everyone</h2>
-
         <p>
-          Vintage Collections is committed to making our website accessible to
-          as many people as possible, including those with visual, auditory,
+          TreasureWave Collections is committed to making our website accessible
+          to as many people as possible, including those with visual, auditory,
           cognitive, or motor disabilities.
         </p>
-
         <h3>6.1 Our commitment</h3>
-        <p>
-          We aim to meet the Web Content Accessibility Guidelines (WCAG) 2.1 at
-          Level AA. This means we work to ensure our site is:
-        </p>
         <ul>
           <li>
             <strong>Perceivable:</strong> content can be seen, heard, or
@@ -850,7 +1445,6 @@
             technologies and browsers
           </li>
         </ul>
-
         <h3>6.2 Known limitations</h3>
         <p>
           We are a small team and acknowledge that some areas of our site may
@@ -858,15 +1452,12 @@
           product images which may lack detailed alt text. We are actively
           working to address these gaps.
         </p>
-
         <h3>6.3 Contact us about accessibility</h3>
         <p>
           If you encounter a barrier on our site or need content in an
           alternative format, please reach out. We aim to respond to
           accessibility requests within <strong>5 business days</strong>.
         </p>
-
-        <!-- Contact card -->
         <div class="contact-card">
           <h3>Get in touch</h3>
           <p>
@@ -874,8 +1465,8 @@
           </p>
           <p>
             📧
-            <a href="mailto:legal@vintage-collections.co.ke"
-              >legal@vintage-collections.co.ke</a
+            <a href="mailto:legal@treasurewave-collections.co.ke"
+              >legal@treasurewave-collections.co.ke</a
             >
           </p>
           <p>📍 Nairobi, Kenya</p>
@@ -892,7 +1483,6 @@
         </div>
       </section>
     </div>
-    <!-- /legal-wrap -->
 
     <!-- FOOTER -->
     <footer class="footer">
@@ -902,7 +1492,7 @@
           <a href="shop.html" class="footer-link">All Products</a>
           <a href="shop.html" class="footer-link">Fashion</a>
           <a href="shop.html" class="footer-link">Electronics</a>
-          <a href="shop.html" class="footer-link">Home & Living</a>
+          <a href="shop.html" class="footer-link">Home &amp; Living</a>
         </div>
         <div class="footer-section">
           <h3>Company</h3>
@@ -924,36 +1514,98 @@
           <a href="#terms" class="footer-link">Terms of Service</a>
           <a href="#cookies" class="footer-link">Cookie Policy</a>
           <a href="#accessibility" class="footer-link">Accessibility</a>
-          <a href="admin-dashboard.html" class="footer-link">Admin</a>
         </div>
       </div>
       <div class="footer-bottom">
         <p>
-          &copy; 2025 Vintage Collections. All rights reserved. Curated from
-          Kenya with love.
+          &copy; 2025 TreasureWave Collections. All rights reserved. Curated
+          from Kenya with love.
         </p>
       </div>
     </footer>
 
     <script>
-      // Highlight active tab on scroll
+      // ── Image fallback chain ───────────────────────────────────────
+      // Try multiple thematically-fitting Unsplash photos in order.
+      // If all fail, a CSS gradient on .page-header is revealed instead.
+      const IMAGE_SOURCES = [
+        "https://images.unsplash.com/photo-1558769132-cb1aea458c5e?w=1400&auto=format&fit=crop&q=80",
+        "https://images.unsplash.com/photo-1523381210434-271e8be1f52b?w=1400&auto=format&fit=crop&q=80",
+        "https://images.unsplash.com/photo-1567401893414-76b7b1e5a7a5?w=1400&auto=format&fit=crop&q=80",
+        "https://images.unsplash.com/photo-1489987707025-afc232f7ea0f?w=1400&auto=format&fit=crop&q=80",
+      ];
+
+      let srcIndex = 0;
+      const heroImg = document.getElementById("heroImg");
+      const pageHeader = document.getElementById("pageHeader");
+
+      function tryNextImage() {
+        srcIndex++;
+        if (srcIndex < IMAGE_SOURCES.length) {
+          heroImg.src = IMAGE_SOURCES[srcIndex];
+        } else {
+          // All images failed — hide the broken img, show the CSS gradient fallback
+          heroImg.style.display = "none";
+          pageHeader.classList.add("img-failed");
+        }
+      }
+
+      heroImg.addEventListener("error", tryNextImage);
+      heroImg.addEventListener("load", function () {
+        if (this.naturalWidth === 0) tryNextImage();
+      });
+
+      // ── Mobile Nav ─────────────────────────────────────────────────
+      function openMobileNav() {
+        document.getElementById("mobile-nav-drawer").classList.add("open");
+        document.getElementById("mobile-nav-overlay").classList.add("open");
+        document.body.style.overflow = "hidden";
+      }
+      function closeMobileNav() {
+        document.getElementById("mobile-nav-drawer").classList.remove("open");
+        document.getElementById("mobile-nav-overlay").classList.remove("open");
+        document.body.style.overflow = "";
+      }
+
+      window.goToCart = () => alert("Cart clicked");
+      window.goToAccount = () => (window.location.href = "account.html");
+      window.toggleWishlistPanel = () =>
+        (window.location.href = "account.html");
+      window.performSearch = () => {
+        const q = document.getElementById("search-input").value.trim();
+        if (q)
+          window.location.href = `shop.html?search=${encodeURIComponent(q)}`;
+      };
+      window.performMobileSearch = () => {
+        const q = document.getElementById("mobile-search-input").value.trim();
+        if (q)
+          window.location.href = `shop.html?search=${encodeURIComponent(q)}`;
+      };
+      document.addEventListener("keydown", (e) => {
+        if (e.key === "Enter") {
+          if (document.activeElement?.id === "search-input") performSearch();
+          if (document.activeElement?.id === "mobile-search-input")
+            performMobileSearch();
+        }
+      });
+
+      // ── Active tab on scroll ───────────────────────────────────────
       const sections = document.querySelectorAll(".legal-section");
       const tabs = document.querySelectorAll(".tab-link");
-
       const observer = new IntersectionObserver(
         (entries) => {
           entries.forEach((entry) => {
             if (entry.isIntersecting) {
               tabs.forEach((t) => t.classList.remove("active"));
-              const id = entry.target.id;
-              const active = document.querySelector(`.tab-link[href="#${id}"]`);
+              const active = document.querySelector(
+                `.tab-link[href="#${entry.target.id}"]`,
+              );
               if (active) active.classList.add("active");
             }
           });
         },
         { rootMargin: "-20% 0px -70% 0px" },
       );
-
       sections.forEach((s) => observer.observe(s));
     </script>
   </body>
